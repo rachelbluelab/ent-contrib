@@ -157,6 +157,21 @@ func (c *Cursor) UnmarshalGQL(v interface{}) error {
 	return nil
 }
 
+// UnmarshalJSON implements json.Unmarshaler interface.
+func (c *Cursor) UnmarshalJSON(v []byte) error {
+	s := string(v)
+	s = s[1:len(s)-1]
+	if err := msgpack.NewDecoder(
+		base64.NewDecoder(
+			base64.RawStdEncoding,
+			strings.NewReader(s),
+		),
+	).Decode(c); err != nil {
+		return fmt.Errorf("cannot decode cursor: %w", err)
+	}
+	return nil
+}
+
 const errInvalidPagination = "INVALID_PAGINATION"
 
 func validateFirstLast(first, last *int) (err *gqlerror.Error) {
