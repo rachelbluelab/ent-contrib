@@ -15,15 +15,16 @@
 package entgql
 
 import (
-	"github.com/facebook/ent/entc/gen"
 	"github.com/facebookincubator/ent-contrib/entgql/internal"
+
+	"github.com/facebook/ent/entc/gen"
 	_ "github.com/go-bindata/go-bindata"
 )
 
 var (
-	// CollectTemplate adds fields collection support using auto eager-load ent edges.
+	// CollectionTemplate adds fields collection support using auto eager-load ent edges.
 	// More info can be found here: https://spec.graphql.org/June2018/#sec-Field-Collection.
-	CollectTemplate = parse("template/collect.tmpl")
+	CollectionTemplate = parse("template/collection.tmpl")
 
 	// EnumTemplate adds a template implementing MarshalGQL/UnmarshalGQL methods for enums.
 	EnumTemplate = parse("template/enum.tmpl")
@@ -41,7 +42,7 @@ var (
 
 	// AllTemplates holds all templates for extending ent to support GraphQL.
 	AllTemplates = []*gen.Template{
-		CollectTemplate,
+		CollectionTemplate,
 		EnumTemplate,
 		NodeTemplate,
 		PaginationTemplate,
