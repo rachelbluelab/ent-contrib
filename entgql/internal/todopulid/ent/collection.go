@@ -24,8 +24,8 @@ import (
 
 // CollectFields tells the query-builder to eagerly load connected nodes by resolver context.
 func (t *TodoQuery) CollectFields(ctx context.Context, satisfies ...string) *TodoQuery {
-	if fc := graphql.GetFieldContext(ctx); fc != nil {
-		t = t.collectField(graphql.GetOperationContext(ctx), fc.Field, satisfies...)
+	if _fc := graphql.GetFieldContext(ctx); _fc != nil {
+		t = t.collectField(graphql.GetOperationContext(ctx), _fc.Field, satisfies...)
 	}
 	return t
 }

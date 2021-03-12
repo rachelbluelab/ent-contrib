@@ -25,11 +25,11 @@ import (
 	"strconv"
 	"strings"
 
+	"entgo.io/contrib/entgql/internal/todopulid/ent/schema/pulid"
+	"entgo.io/contrib/entgql/internal/todopulid/ent/todo"
+	"entgo.io/ent/dialect/sql"
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/errcode"
-	"github.com/facebook/ent/dialect/sql"
-	"github.com/facebookincubator/ent-contrib/entgql/internal/todopulid/ent/schema/pulid"
-	"github.com/facebookincubator/ent-contrib/entgql/internal/todopulid/ent/todo"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 	"github.com/vmihailenco/msgpack/v5"
 )
@@ -168,7 +168,7 @@ func (c Cursor) MarshalGQL(w io.Writer) {
 	quote := []byte{'"'}
 	w.Write(quote)
 	defer w.Write(quote)
-	wc := base64.NewEncoder(base64.RawStdEncoding, w)
+	wc := base64.NewEncoder(base64.RawURLEncoding, w)
 	defer wc.Close()
 	_ = msgpack.NewEncoder(wc).Encode(c)
 }
@@ -181,7 +181,22 @@ func (c *Cursor) UnmarshalGQL(v interface{}) error {
 	}
 	if err := msgpack.NewDecoder(
 		base64.NewDecoder(
-			base64.RawStdEncoding,
+			base64.RawURLEncoding,
+			strings.NewReader(s),
+		),
+	).Decode(c); err != nil {
+		return fmt.Errorf("cannot decode cursor: %w", err)
+	}
+	return nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler interface.
+func (c *Cursor) UnmarshalJSON(v []byte) error {
+	s := string(v)
+	s = s[1 : len(s)-1]
+	if err := msgpack.NewDecoder(
+		base64.NewDecoder(
+			base64.RawURLEncoding,
 			strings.NewReader(s),
 		),
 	).Decode(c); err != nil {
