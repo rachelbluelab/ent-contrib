@@ -2,6 +2,10 @@
 
 package user
 
+import (
+	"fmt"
+)
+
 const (
 	// Label holds the string label denoting the user type in the database.
 	Label = "user"
@@ -9,10 +13,12 @@ const (
 	FieldID = "id"
 	// FieldUserName holds the string denoting the user_name field in the database.
 	FieldUserName = "user_name"
-
+	// FieldStatus holds the string denoting the status field in the database.
+	FieldStatus = "status"
 	// EdgeBlogPosts holds the string denoting the blog_posts edge name in mutations.
 	EdgeBlogPosts = "blog_posts"
-
+	// EdgeProfilePic holds the string denoting the profile_pic edge name in mutations.
+	EdgeProfilePic = "profile_pic"
 	// Table holds the table name of the user in the database.
 	Table = "users"
 	// BlogPostsTable is the table the holds the blog_posts relation/edge.
@@ -22,12 +28,26 @@ const (
 	BlogPostsInverseTable = "blog_posts"
 	// BlogPostsColumn is the table column denoting the blog_posts relation/edge.
 	BlogPostsColumn = "blog_post_author"
+	// ProfilePicTable is the table the holds the profile_pic relation/edge.
+	ProfilePicTable = "users"
+	// ProfilePicInverseTable is the table name for the Image entity.
+	// It exists in this package in order to avoid circular dependency with the "image" package.
+	ProfilePicInverseTable = "images"
+	// ProfilePicColumn is the table column denoting the profile_pic relation/edge.
+	ProfilePicColumn = "user_profile_pic"
 )
 
 // Columns holds all SQL columns for user fields.
 var Columns = []string{
 	FieldID,
 	FieldUserName,
+	FieldStatus,
+}
+
+// ForeignKeys holds the SQL foreign-keys that are owned by the "users"
+// table and are not defined as standalone fields in the schema.
+var ForeignKeys = []string{
+	"user_profile_pic",
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -37,5 +57,33 @@ func ValidColumn(column string) bool {
 			return true
 		}
 	}
+	for i := range ForeignKeys {
+		if column == ForeignKeys[i] {
+			return true
+		}
+	}
 	return false
+}
+
+// Status defines the type for the "status" enum field.
+type Status string
+
+// Status values.
+const (
+	StatusPending Status = "pending"
+	StatusActive  Status = "active"
+)
+
+func (s Status) String() string {
+	return string(s)
+}
+
+// StatusValidator is a validator for the "status" field enum values. It is called by the builders before save.
+func StatusValidator(s Status) error {
+	switch s {
+	case StatusPending, StatusActive:
+		return nil
+	default:
+		return fmt.Errorf("user: invalid enum value for status field: %q", s)
+	}
 }

@@ -33,6 +33,12 @@ func (bpc *BlogPostCreate) SetBody(s string) *BlogPostCreate {
 	return bpc
 }
 
+// SetExternalID sets the "external_id" field.
+func (bpc *BlogPostCreate) SetExternalID(i int) *BlogPostCreate {
+	bpc.mutation.SetExternalID(i)
+	return bpc
+}
+
 // SetAuthorID sets the "author" edge to the User entity by ID.
 func (bpc *BlogPostCreate) SetAuthorID(id int) *BlogPostCreate {
 	bpc.mutation.SetAuthorID(id)
@@ -124,6 +130,9 @@ func (bpc *BlogPostCreate) check() error {
 	if _, ok := bpc.mutation.Body(); !ok {
 		return &ValidationError{Name: "body", err: errors.New("ent: missing required field \"body\"")}
 	}
+	if _, ok := bpc.mutation.ExternalID(); !ok {
+		return &ValidationError{Name: "external_id", err: errors.New("ent: missing required field \"external_id\"")}
+	}
 	return nil
 }
 
@@ -167,6 +176,14 @@ func (bpc *BlogPostCreate) createSpec() (*BlogPost, *sqlgraph.CreateSpec) {
 		})
 		_node.Body = value
 	}
+	if value, ok := bpc.mutation.ExternalID(); ok {
+		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
+			Type:   field.TypeInt,
+			Value:  value,
+			Column: blogpost.FieldExternalID,
+		})
+		_node.ExternalID = value
+	}
 	if nodes := bpc.mutation.AuthorIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2O,
@@ -184,6 +201,7 @@ func (bpc *BlogPostCreate) createSpec() (*BlogPost, *sqlgraph.CreateSpec) {
 		for _, k := range nodes {
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
+		_node.blog_post_author = &nodes[0]
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	if nodes := bpc.mutation.CategoriesIDs(); len(nodes) > 0 {

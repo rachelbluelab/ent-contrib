@@ -22,6 +22,8 @@ type Tx struct {
 	DuplicateNumberMessage *DuplicateNumberMessageClient
 	// ExplicitSkippedMessage is the client for interacting with the ExplicitSkippedMessage builders.
 	ExplicitSkippedMessage *ExplicitSkippedMessageClient
+	// Image is the client for interacting with the Image builders.
+	Image *ImageClient
 	// ImplicitSkippedMessage is the client for interacting with the ImplicitSkippedMessage builders.
 	ImplicitSkippedMessage *ImplicitSkippedMessageClient
 	// InvalidFieldMessage is the client for interacting with the InvalidFieldMessage builders.
@@ -32,6 +34,8 @@ type Tx struct {
 	MessageWithFieldOne *MessageWithFieldOneClient
 	// MessageWithID is the client for interacting with the MessageWithID builders.
 	MessageWithID *MessageWithIDClient
+	// MessageWithOptionals is the client for interacting with the MessageWithOptionals builders.
+	MessageWithOptionals *MessageWithOptionalsClient
 	// MessageWithPackageName is the client for interacting with the MessageWithPackageName builders.
 	MessageWithPackageName *MessageWithPackageNameClient
 	// Portal is the client for interacting with the Portal builders.
@@ -180,11 +184,13 @@ func (tx *Tx) init() {
 	tx.DependsOnSkipped = NewDependsOnSkippedClient(tx.config)
 	tx.DuplicateNumberMessage = NewDuplicateNumberMessageClient(tx.config)
 	tx.ExplicitSkippedMessage = NewExplicitSkippedMessageClient(tx.config)
+	tx.Image = NewImageClient(tx.config)
 	tx.ImplicitSkippedMessage = NewImplicitSkippedMessageClient(tx.config)
 	tx.InvalidFieldMessage = NewInvalidFieldMessageClient(tx.config)
 	tx.MessageWithEnum = NewMessageWithEnumClient(tx.config)
 	tx.MessageWithFieldOne = NewMessageWithFieldOneClient(tx.config)
 	tx.MessageWithID = NewMessageWithIDClient(tx.config)
+	tx.MessageWithOptionals = NewMessageWithOptionalsClient(tx.config)
 	tx.MessageWithPackageName = NewMessageWithPackageNameClient(tx.config)
 	tx.Portal = NewPortalClient(tx.config)
 	tx.User = NewUserClient(tx.config)

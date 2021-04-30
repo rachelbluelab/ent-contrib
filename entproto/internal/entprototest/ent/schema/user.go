@@ -30,6 +30,14 @@ func (User) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("user_name").
 			Annotations(entproto.Field(2)),
+		field.Enum("status").
+			Values("pending", "active").
+			Annotations(
+				entproto.Field(4),
+				entproto.Enum(map[string]int32{
+					"pending": 1,
+					"active":  2,
+				})),
 	}
 }
 
@@ -38,6 +46,9 @@ func (User) Edges() []ent.Edge {
 		edge.From("blog_posts", BlogPost.Type).
 			Ref("author").
 			Annotations(entproto.Field(3)),
+		edge.To("profile_pic", Image.Type).
+			Unique().
+			Annotations(entproto.Field(5)),
 	}
 }
 

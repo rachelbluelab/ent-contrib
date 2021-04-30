@@ -18,7 +18,10 @@ import (
 	"entgo.io/contrib/entproto"
 	"entgo.io/ent"
 	"entgo.io/ent/schema"
+	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
+	"github.com/google/uuid"
+	"google.golang.org/protobuf/types/descriptorpb"
 )
 
 // User holds the schema definition for the User entity.
@@ -37,11 +40,61 @@ func (User) Annotations() []schema.Annotation {
 func (User) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("user_name").
+			Unique().
 			Annotations(entproto.Field(2)),
+		field.Time("joined").
+			Immutable().
+			Annotations(entproto.Field(3)),
+		field.Uint("points").
+			Annotations(entproto.Field(4)),
+		field.Uint64("exp").
+			Annotations(entproto.Field(5)),
+		field.Enum("status").
+			Values("pending", "active").
+			Annotations(
+				entproto.Field(6),
+				entproto.Enum(map[string]int32{
+					"pending": 1,
+					"active":  2,
+				}),
+			),
+		field.Int("external_id").
+			Unique().
+			Annotations(entproto.Field(8)),
+		field.UUID("crm_id", uuid.New()).
+			Annotations(entproto.Field(9)),
+		field.Bool("banned").
+			Default(false).
+			Annotations(entproto.Field(10)),
+		field.Uint8("custom_pb").
+			Annotations(
+				entproto.Field(12,
+					entproto.Type(descriptorpb.FieldDescriptorProto_TYPE_UINT64),
+				),
+			),
+		field.Int("opt_num").
+			Optional().
+			Annotations(entproto.Field(13)),
+		field.String("opt_str").
+			Optional().
+			Annotations(entproto.Field(14)),
+		field.String("opt_bool").
+			Optional().
+			Annotations(entproto.Field(15)),
 	}
 }
 
-// Edges of the User.
 func (User) Edges() []ent.Edge {
-	return nil
+	return []ent.Edge{
+		edge.To("group", Group.Type).
+			Unique().
+			Annotations(
+				entproto.Field(7),
+			),
+		edge.To("attachment", Attachment.Type).
+			Unique().
+			Annotations(
+				entproto.Field(11),
+			),
+	}
 }

@@ -21,6 +21,9 @@ type DuplicateNumberMessage func(*sql.Selector)
 // ExplicitSkippedMessage is the predicate function for explicitskippedmessage builders.
 type ExplicitSkippedMessage func(*sql.Selector)
 
+// Image is the predicate function for image builders.
+type Image func(*sql.Selector)
+
 // ImplicitSkippedMessage is the predicate function for implicitskippedmessage builders.
 type ImplicitSkippedMessage func(*sql.Selector)
 
@@ -35,6 +38,9 @@ type MessageWithFieldOne func(*sql.Selector)
 
 // MessageWithID is the predicate function for messagewithid builders.
 type MessageWithID func(*sql.Selector)
+
+// MessageWithOptionals is the predicate function for messagewithoptionals builders.
+type MessageWithOptionals func(*sql.Selector)
 
 // MessageWithPackageName is the predicate function for messagewithpackagename builders.
 type MessageWithPackageName func(*sql.Selector)

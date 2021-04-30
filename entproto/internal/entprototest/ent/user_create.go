@@ -8,9 +8,11 @@ import (
 	"fmt"
 
 	"entgo.io/contrib/entproto/internal/entprototest/ent/blogpost"
+	"entgo.io/contrib/entproto/internal/entprototest/ent/image"
 	"entgo.io/contrib/entproto/internal/entprototest/ent/user"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/google/uuid"
 )
 
 // UserCreate is the builder for creating a User entity.
@@ -23,6 +25,12 @@ type UserCreate struct {
 // SetUserName sets the "user_name" field.
 func (uc *UserCreate) SetUserName(s string) *UserCreate {
 	uc.mutation.SetUserName(s)
+	return uc
+}
+
+// SetStatus sets the "status" field.
+func (uc *UserCreate) SetStatus(u user.Status) *UserCreate {
+	uc.mutation.SetStatus(u)
 	return uc
 }
 
@@ -39,6 +47,25 @@ func (uc *UserCreate) AddBlogPosts(b ...*BlogPost) *UserCreate {
 		ids[i] = b[i].ID
 	}
 	return uc.AddBlogPostIDs(ids...)
+}
+
+// SetProfilePicID sets the "profile_pic" edge to the Image entity by ID.
+func (uc *UserCreate) SetProfilePicID(id uuid.UUID) *UserCreate {
+	uc.mutation.SetProfilePicID(id)
+	return uc
+}
+
+// SetNillableProfilePicID sets the "profile_pic" edge to the Image entity by ID if the given value is not nil.
+func (uc *UserCreate) SetNillableProfilePicID(id *uuid.UUID) *UserCreate {
+	if id != nil {
+		uc = uc.SetProfilePicID(*id)
+	}
+	return uc
+}
+
+// SetProfilePic sets the "profile_pic" edge to the Image entity.
+func (uc *UserCreate) SetProfilePic(i *Image) *UserCreate {
+	return uc.SetProfilePicID(i.ID)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -95,6 +122,14 @@ func (uc *UserCreate) check() error {
 	if _, ok := uc.mutation.UserName(); !ok {
 		return &ValidationError{Name: "user_name", err: errors.New("ent: missing required field \"user_name\"")}
 	}
+	if _, ok := uc.mutation.Status(); !ok {
+		return &ValidationError{Name: "status", err: errors.New("ent: missing required field \"status\"")}
+	}
+	if v, ok := uc.mutation.Status(); ok {
+		if err := user.StatusValidator(v); err != nil {
+			return &ValidationError{Name: "status", err: fmt.Errorf("ent: validator failed for field \"status\": %w", err)}
+		}
+	}
 	return nil
 }
 
@@ -130,6 +165,14 @@ func (uc *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 		})
 		_node.UserName = value
 	}
+	if value, ok := uc.mutation.Status(); ok {
+		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
+			Type:   field.TypeEnum,
+			Value:  value,
+			Column: user.FieldStatus,
+		})
+		_node.Status = value
+	}
 	if nodes := uc.mutation.BlogPostsIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.O2M,
@@ -147,6 +190,26 @@ func (uc *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 		for _, k := range nodes {
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := uc.mutation.ProfilePicIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   user.ProfilePicTable,
+			Columns: []string{user.ProfilePicColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeUUID,
+					Column: image.FieldID,
+				},
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_node.user_profile_pic = &nodes[0]
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	return _node, _spec

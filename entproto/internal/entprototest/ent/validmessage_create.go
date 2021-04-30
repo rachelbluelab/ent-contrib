@@ -11,6 +11,7 @@ import (
 	"entgo.io/contrib/entproto/internal/entprototest/ent/validmessage"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/google/uuid"
 )
 
 // ValidMessageCreate is the builder for creating a ValidMessage entity.
@@ -29,6 +30,32 @@ func (vmc *ValidMessageCreate) SetName(s string) *ValidMessageCreate {
 // SetTs sets the "ts" field.
 func (vmc *ValidMessageCreate) SetTs(t time.Time) *ValidMessageCreate {
 	vmc.mutation.SetTs(t)
+	return vmc
+}
+
+// SetUUID sets the "uuid" field.
+func (vmc *ValidMessageCreate) SetUUID(u uuid.UUID) *ValidMessageCreate {
+	vmc.mutation.SetUUID(u)
+	return vmc
+}
+
+// SetU8 sets the "u8" field.
+func (vmc *ValidMessageCreate) SetU8(u uint8) *ValidMessageCreate {
+	vmc.mutation.SetU8(u)
+	return vmc
+}
+
+// SetOpti8 sets the "opti8" field.
+func (vmc *ValidMessageCreate) SetOpti8(i int8) *ValidMessageCreate {
+	vmc.mutation.SetOpti8(i)
+	return vmc
+}
+
+// SetNillableOpti8 sets the "opti8" field if the given value is not nil.
+func (vmc *ValidMessageCreate) SetNillableOpti8(i *int8) *ValidMessageCreate {
+	if i != nil {
+		vmc.SetOpti8(*i)
+	}
 	return vmc
 }
 
@@ -89,6 +116,12 @@ func (vmc *ValidMessageCreate) check() error {
 	if _, ok := vmc.mutation.Ts(); !ok {
 		return &ValidationError{Name: "ts", err: errors.New("ent: missing required field \"ts\"")}
 	}
+	if _, ok := vmc.mutation.UUID(); !ok {
+		return &ValidationError{Name: "uuid", err: errors.New("ent: missing required field \"uuid\"")}
+	}
+	if _, ok := vmc.mutation.U8(); !ok {
+		return &ValidationError{Name: "u8", err: errors.New("ent: missing required field \"u8\"")}
+	}
 	return nil
 }
 
@@ -131,6 +164,30 @@ func (vmc *ValidMessageCreate) createSpec() (*ValidMessage, *sqlgraph.CreateSpec
 			Column: validmessage.FieldTs,
 		})
 		_node.Ts = value
+	}
+	if value, ok := vmc.mutation.UUID(); ok {
+		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
+			Type:   field.TypeUUID,
+			Value:  value,
+			Column: validmessage.FieldUUID,
+		})
+		_node.UUID = value
+	}
+	if value, ok := vmc.mutation.U8(); ok {
+		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
+			Type:   field.TypeUint8,
+			Value:  value,
+			Column: validmessage.FieldU8,
+		})
+		_node.U8 = value
+	}
+	if value, ok := vmc.mutation.Opti8(); ok {
+		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
+			Type:   field.TypeInt8,
+			Value:  value,
+			Column: validmessage.FieldOpti8,
+		})
+		_node.Opti8 = &value
 	}
 	return _node, _spec
 }

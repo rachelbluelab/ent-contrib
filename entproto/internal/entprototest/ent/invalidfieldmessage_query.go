@@ -245,12 +245,12 @@ func (ifmq *InvalidFieldMessageQuery) Clone() *InvalidFieldMessageQuery {
 // Example:
 //
 //	var v []struct {
-//		Hello uuid.UUID `json:"hello,omitempty"`
+//		JSON *schema.SomeJSON `json:"json,omitempty"`
 //		Count int `json:"count,omitempty"`
 //	}
 //
 //	client.InvalidFieldMessage.Query().
-//		GroupBy(invalidfieldmessage.FieldHello).
+//		GroupBy(invalidfieldmessage.FieldJSON).
 //		Aggregate(ent.Count()).
 //		Scan(ctx, &v)
 //
@@ -272,11 +272,11 @@ func (ifmq *InvalidFieldMessageQuery) GroupBy(field string, fields ...string) *I
 // Example:
 //
 //	var v []struct {
-//		Hello uuid.UUID `json:"hello,omitempty"`
+//		JSON *schema.SomeJSON `json:"json,omitempty"`
 //	}
 //
 //	client.InvalidFieldMessage.Query().
-//		Select(invalidfieldmessage.FieldHello).
+//		Select(invalidfieldmessage.FieldJSON).
 //		Scan(ctx, &v)
 //
 func (ifmq *InvalidFieldMessageQuery) Select(field string, fields ...string) *InvalidFieldMessageSelect {
@@ -334,7 +334,7 @@ func (ifmq *InvalidFieldMessageQuery) sqlCount(ctx context.Context) (int, error)
 func (ifmq *InvalidFieldMessageQuery) sqlExist(ctx context.Context) (bool, error) {
 	n, err := ifmq.sqlCount(ctx)
 	if err != nil {
-		return false, fmt.Errorf("ent: check existence: %v", err)
+		return false, fmt.Errorf("ent: check existence: %w", err)
 	}
 	return n > 0, nil
 }

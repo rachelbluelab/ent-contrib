@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/google/uuid"
 )
 
 // ValidMessageUpdate is the builder for updating ValidMessage entities.
@@ -36,6 +37,52 @@ func (vmu *ValidMessageUpdate) SetName(s string) *ValidMessageUpdate {
 // SetTs sets the "ts" field.
 func (vmu *ValidMessageUpdate) SetTs(t time.Time) *ValidMessageUpdate {
 	vmu.mutation.SetTs(t)
+	return vmu
+}
+
+// SetUUID sets the "uuid" field.
+func (vmu *ValidMessageUpdate) SetUUID(u uuid.UUID) *ValidMessageUpdate {
+	vmu.mutation.SetUUID(u)
+	return vmu
+}
+
+// SetU8 sets the "u8" field.
+func (vmu *ValidMessageUpdate) SetU8(u uint8) *ValidMessageUpdate {
+	vmu.mutation.ResetU8()
+	vmu.mutation.SetU8(u)
+	return vmu
+}
+
+// AddU8 adds u to the "u8" field.
+func (vmu *ValidMessageUpdate) AddU8(u uint8) *ValidMessageUpdate {
+	vmu.mutation.AddU8(u)
+	return vmu
+}
+
+// SetOpti8 sets the "opti8" field.
+func (vmu *ValidMessageUpdate) SetOpti8(i int8) *ValidMessageUpdate {
+	vmu.mutation.ResetOpti8()
+	vmu.mutation.SetOpti8(i)
+	return vmu
+}
+
+// SetNillableOpti8 sets the "opti8" field if the given value is not nil.
+func (vmu *ValidMessageUpdate) SetNillableOpti8(i *int8) *ValidMessageUpdate {
+	if i != nil {
+		vmu.SetOpti8(*i)
+	}
+	return vmu
+}
+
+// AddOpti8 adds i to the "opti8" field.
+func (vmu *ValidMessageUpdate) AddOpti8(i int8) *ValidMessageUpdate {
+	vmu.mutation.AddOpti8(i)
+	return vmu
+}
+
+// ClearOpti8 clears the value of the "opti8" field.
+func (vmu *ValidMessageUpdate) ClearOpti8() *ValidMessageUpdate {
+	vmu.mutation.ClearOpti8()
 	return vmu
 }
 
@@ -127,6 +174,47 @@ func (vmu *ValidMessageUpdate) sqlSave(ctx context.Context) (n int, err error) {
 			Column: validmessage.FieldTs,
 		})
 	}
+	if value, ok := vmu.mutation.UUID(); ok {
+		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
+			Type:   field.TypeUUID,
+			Value:  value,
+			Column: validmessage.FieldUUID,
+		})
+	}
+	if value, ok := vmu.mutation.U8(); ok {
+		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
+			Type:   field.TypeUint8,
+			Value:  value,
+			Column: validmessage.FieldU8,
+		})
+	}
+	if value, ok := vmu.mutation.AddedU8(); ok {
+		_spec.Fields.Add = append(_spec.Fields.Add, &sqlgraph.FieldSpec{
+			Type:   field.TypeUint8,
+			Value:  value,
+			Column: validmessage.FieldU8,
+		})
+	}
+	if value, ok := vmu.mutation.Opti8(); ok {
+		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
+			Type:   field.TypeInt8,
+			Value:  value,
+			Column: validmessage.FieldOpti8,
+		})
+	}
+	if value, ok := vmu.mutation.AddedOpti8(); ok {
+		_spec.Fields.Add = append(_spec.Fields.Add, &sqlgraph.FieldSpec{
+			Type:   field.TypeInt8,
+			Value:  value,
+			Column: validmessage.FieldOpti8,
+		})
+	}
+	if vmu.mutation.Opti8Cleared() {
+		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
+			Type:   field.TypeInt8,
+			Column: validmessage.FieldOpti8,
+		})
+	}
 	if n, err = sqlgraph.UpdateNodes(ctx, vmu.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{validmessage.Label}
@@ -154,6 +242,52 @@ func (vmuo *ValidMessageUpdateOne) SetName(s string) *ValidMessageUpdateOne {
 // SetTs sets the "ts" field.
 func (vmuo *ValidMessageUpdateOne) SetTs(t time.Time) *ValidMessageUpdateOne {
 	vmuo.mutation.SetTs(t)
+	return vmuo
+}
+
+// SetUUID sets the "uuid" field.
+func (vmuo *ValidMessageUpdateOne) SetUUID(u uuid.UUID) *ValidMessageUpdateOne {
+	vmuo.mutation.SetUUID(u)
+	return vmuo
+}
+
+// SetU8 sets the "u8" field.
+func (vmuo *ValidMessageUpdateOne) SetU8(u uint8) *ValidMessageUpdateOne {
+	vmuo.mutation.ResetU8()
+	vmuo.mutation.SetU8(u)
+	return vmuo
+}
+
+// AddU8 adds u to the "u8" field.
+func (vmuo *ValidMessageUpdateOne) AddU8(u uint8) *ValidMessageUpdateOne {
+	vmuo.mutation.AddU8(u)
+	return vmuo
+}
+
+// SetOpti8 sets the "opti8" field.
+func (vmuo *ValidMessageUpdateOne) SetOpti8(i int8) *ValidMessageUpdateOne {
+	vmuo.mutation.ResetOpti8()
+	vmuo.mutation.SetOpti8(i)
+	return vmuo
+}
+
+// SetNillableOpti8 sets the "opti8" field if the given value is not nil.
+func (vmuo *ValidMessageUpdateOne) SetNillableOpti8(i *int8) *ValidMessageUpdateOne {
+	if i != nil {
+		vmuo.SetOpti8(*i)
+	}
+	return vmuo
+}
+
+// AddOpti8 adds i to the "opti8" field.
+func (vmuo *ValidMessageUpdateOne) AddOpti8(i int8) *ValidMessageUpdateOne {
+	vmuo.mutation.AddOpti8(i)
+	return vmuo
+}
+
+// ClearOpti8 clears the value of the "opti8" field.
+func (vmuo *ValidMessageUpdateOne) ClearOpti8() *ValidMessageUpdateOne {
+	vmuo.mutation.ClearOpti8()
 	return vmuo
 }
 
@@ -248,6 +382,47 @@ func (vmuo *ValidMessageUpdateOne) sqlSave(ctx context.Context) (_node *ValidMes
 			Type:   field.TypeTime,
 			Value:  value,
 			Column: validmessage.FieldTs,
+		})
+	}
+	if value, ok := vmuo.mutation.UUID(); ok {
+		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
+			Type:   field.TypeUUID,
+			Value:  value,
+			Column: validmessage.FieldUUID,
+		})
+	}
+	if value, ok := vmuo.mutation.U8(); ok {
+		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
+			Type:   field.TypeUint8,
+			Value:  value,
+			Column: validmessage.FieldU8,
+		})
+	}
+	if value, ok := vmuo.mutation.AddedU8(); ok {
+		_spec.Fields.Add = append(_spec.Fields.Add, &sqlgraph.FieldSpec{
+			Type:   field.TypeUint8,
+			Value:  value,
+			Column: validmessage.FieldU8,
+		})
+	}
+	if value, ok := vmuo.mutation.Opti8(); ok {
+		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
+			Type:   field.TypeInt8,
+			Value:  value,
+			Column: validmessage.FieldOpti8,
+		})
+	}
+	if value, ok := vmuo.mutation.AddedOpti8(); ok {
+		_spec.Fields.Add = append(_spec.Fields.Add, &sqlgraph.FieldSpec{
+			Type:   field.TypeInt8,
+			Value:  value,
+			Column: validmessage.FieldOpti8,
+		})
+	}
+	if vmuo.mutation.Opti8Cleared() {
+		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
+			Type:   field.TypeInt8,
+			Column: validmessage.FieldOpti8,
 		})
 	}
 	_node = &ValidMessage{config: vmuo.config}

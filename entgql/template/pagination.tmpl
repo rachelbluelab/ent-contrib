@@ -227,7 +227,7 @@ const (
 
 {{ range $node := $.Nodes -}}
 {{ $orderFields := list -}}
-{{- range $f := $node.Fields }}
+{{- range $f := append $node.Fields $node.ID }}
 	{{- if $annotation := $f.Annotations.EntGQL }}
 		{{- if not $f.Type.Comparable }}
 			{{ fail (printf "annotated field %s.%s must be comparable" $node.Name $f.Name) }}
@@ -362,9 +362,7 @@ func ({{ $r }} *{{ $query }}) Paginate(
 	}
 
 	conn := &{{ $conn }}{Edges: []*{{ $edge }}{}}
-	if !hasCollectedField(ctx, edgesField) ||
-		first != nil && *first == 0 ||
-		last != nil && *last == 0 {
+	if !hasCollectedField(ctx, edgesField) || first != nil && *first == 0 || last != nil && *last == 0 {
 		if hasCollectedField(ctx, totalCountField) ||
 			hasCollectedField(ctx, pageInfoField) {
 			count, err := {{ $r }}.Count(ctx)
@@ -378,8 +376,7 @@ func ({{ $r }} *{{ $query }}) Paginate(
 		return conn, nil
 	}
 
-	if (after != nil || first != nil || before != nil || last != nil) &&
-		hasCollectedField(ctx, totalCountField) {
+	if (after != nil || first != nil || before != nil || last != nil) && hasCollectedField(ctx, totalCountField) {
 		count, err := {{ $r }}.Clone().Count(ctx)
 		if err != nil {
 			return nil, err

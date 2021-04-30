@@ -58,7 +58,7 @@ func Generate(g *gen.Graph) error {
 	entProtoDir := path.Join(g.Config.Target, "proto")
 	adapter, err := LoadAdapter(g)
 	if err != nil {
-		return fmt.Errorf("entproto: failed parsing ent graph")
+		return fmt.Errorf("entproto: failed parsing ent graph: %w", err)
 	}
 	var errs error
 	for _, schema := range g.Schemas {
@@ -112,6 +112,7 @@ func protocGenerateGo(fd *desc.FileDescriptor) string {
 	for i := 0; i < levelsUp; i++ {
 		toProtoBase = filepath.Join("..", toProtoBase)
 	}
+	schemaDir := filepath.Join("..", toProtoBase, "schema")
 	protocCmd := []string{
 		"protoc",
 		"-I=" + toProtoBase,
@@ -119,6 +120,8 @@ func protocGenerateGo(fd *desc.FileDescriptor) string {
 		"--go-grpc_out=" + toProtoBase,
 		"--go_opt=paths=source_relative",
 		"--go-grpc_opt=paths=source_relative",
+		"--entgrpc_out=" + toProtoBase,
+		"--entgrpc_opt=paths=source_relative,schema_path=" + schemaDir,
 		fd.GetName(),
 	}
 	goGen := fmt.Sprintf("//go:generate %s", strings.Join(protocCmd, " "))

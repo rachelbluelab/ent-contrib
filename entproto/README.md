@@ -12,6 +12,12 @@ Download the module:
 ```console
 go get -u entgo.io/contrib/entproto
 ```
+
+Install `protoc-gen-entgrpc` (ent's gRPC service implementation generator): 
+```console
+go get entgo.io/contrib/entproto/cmd/protoc-gen-entgrpc
+```
+
 Annotate the schema with `entproto.Message()` and all fields with the desired proto field numbers (notice the field number 1 is reserved for the schema's `ID` field:
 ```go
 package schema
@@ -63,10 +69,49 @@ message User {
 }
 ```
 In addition, a file named `generate.go`, which contains a `//go:generate` directive to invoke `protoc` and create Go files for the protocol buffers and gRPC services is created adjecent to the `.proto` file. If a file by that name already exists, this step is skipped.
+The protoc invocation includes requests for codegen from 3 plugins: protoc-gen-go (standard Go codegen), protoc-gen-go-grpc (standard gRPC codegen)
+and protoc-gen-entgrpc (an ent-specific protoc plugin that generates service implementations using ent). 
 
 To generate the Go files from the `.proto` file run:
 ```console
 go generate ./ent/proto/...
+```
+
+### `protoc-gen-entgrpc`
+`protoc-gen-entgrpc` is a `protoc` plugin that generates server code that implements the gRPC interface that
+was generated from the ent schema. It must receive a path to the ent schema directory which is used to map
+the schema definitions with the proto definitions to produce correct code:
+
+```console
+protoc -I=.. --go_out=.. --go-grpc_out=.. --go_opt=paths=source_relative --entgrpc_out=.. --entgrpc_opt=paths=source_relative,schema_path=../../schema --go-grpc_opt=paths=source_relative entpb/entpb.proto
+```
+As mentioned in the section above, this command will be generated for you for each protobuf package 
+directory when you run the `entproto` command.
+
+The current version generates a full service implementation, an example can be found
+in [entpb/entpb_user_service.go](internal/todo/ent/proto/entpb/entpb_user_service.go).
+
+Some caveats with the current version:
+* Currently only "unique" edges are supported (O2O, O2M). Support for multi-relations will land soon. 
+* The generated "mutating" methods (Create/Update) currently set all fields, disregarding zero/null values and field nullability.
+* All fields are copied from the gRPC request to the ent client, support for making some fields not settable via the service by adding a field/edge annotation is also planned.
+
+```go
+// UserService implements UserServiceServer
+type UserService struct {
+	client *ent.Client
+	UnimplementedUserServiceServer
+}
+
+func NewUserService(client *ent.Client) *UserService {
+	return &UserService{client: client}
+}
+
+// Create implements UserServiceServer.Create
+func (svc *UserService) Create(ctx context.Context, req *CreateUserRequest) (*User, error) {
+	return nil, status.Error(codes.Unimplemented, "error")
+}
+/// ... and so on 
 ```
 
 ## Programmatic code-generation
@@ -179,7 +224,7 @@ service UserService {
 ```
 ## Field Annotations
 
-### ent.Field
+### entproto.Field
 All fields must be annotated with `entproto.Field` to specify their proto field numbers
 ```go
 // Fields of the User.
@@ -204,7 +249,7 @@ Ent Type | Proto Type | More considerations
 TypeBool | bool |
 TypeTime | google.protobuf.Timestamp |
 TypeJSON | X |
-TypeUUID | X |
+TypeUUID | bytes | When receiving an arbitrary byte slice as input, 16-byte length must be validated
 TypeBytes | bytes |
 TypeEnum | Enum | Proto enums like proto fields require stable numbers to be assigned to each value. Therefore we will need to add an extra annotation to map from field value to tag number.
 TypeString | string |
@@ -229,7 +274,20 @@ Validations:
 * No duplication of field numbers (this is illegal protobuf)
 * Only supported ent field types are used
 
-### ent.Enum
+#### Custom Fields
+In some edge cases, it may be required to override the automatic ent <> proto type mapping.
+This can be done by using the `entproto.OverrideType`, field option:
+
+```go
+field.Uint8("custom_pb").
+    Annotations(
+        entproto.Field(12,
+            entproto.Type(descriptorpb.FieldDescriptorProto_TYPE_UINT64),
+        ),
+    )
+```
+
+### entproto.Enum
 
 Proto Enum options, similar to message fields are assigned a numeric identifier that is expected to remain stable through all versions. This means, that a specific Ent Enum field option must always be translated to the same numeric identifier across the re-generation of the export code.
 

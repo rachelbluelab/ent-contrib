@@ -13,6 +13,7 @@ var (
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "title", Type: field.TypeString},
 		{Name: "body", Type: field.TypeString},
+		{Name: "external_id", Type: field.TypeInt, Unique: true},
 		{Name: "blog_post_author", Type: field.TypeInt, Nullable: true},
 	}
 	// BlogPostsTable holds the schema information for the "blog_posts" table.
@@ -22,9 +23,8 @@ var (
 		PrimaryKey: []*schema.Column{BlogPostsColumns[0]},
 		ForeignKeys: []*schema.ForeignKey{
 			{
-				Symbol:  "blog_posts_users_author",
-				Columns: []*schema.Column{BlogPostsColumns[3]},
-
+				Symbol:     "blog_posts_users_author",
+				Columns:    []*schema.Column{BlogPostsColumns[4]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -79,6 +79,18 @@ var (
 		PrimaryKey:  []*schema.Column{ExplicitSkippedMessagesColumns[0]},
 		ForeignKeys: []*schema.ForeignKey{},
 	}
+	// ImagesColumns holds the columns for the "images" table.
+	ImagesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "url_path", Type: field.TypeString},
+	}
+	// ImagesTable holds the schema information for the "images" table.
+	ImagesTable = &schema.Table{
+		Name:        "images",
+		Columns:     ImagesColumns,
+		PrimaryKey:  []*schema.Column{ImagesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{},
+	}
 	// ImplicitSkippedMessagesColumns holds the columns for the "implicit_skipped_messages" table.
 	ImplicitSkippedMessagesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -91,9 +103,8 @@ var (
 		PrimaryKey: []*schema.Column{ImplicitSkippedMessagesColumns[0]},
 		ForeignKeys: []*schema.ForeignKey{
 			{
-				Symbol:  "implicit_skipped_messages_depends_on_skippeds_skipped",
-				Columns: []*schema.Column{ImplicitSkippedMessagesColumns[1]},
-
+				Symbol:     "implicit_skipped_messages_depends_on_skippeds_skipped",
+				Columns:    []*schema.Column{ImplicitSkippedMessagesColumns[1]},
 				RefColumns: []*schema.Column{DependsOnSkippedsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -102,7 +113,7 @@ var (
 	// InvalidFieldMessagesColumns holds the columns for the "invalid_field_messages" table.
 	InvalidFieldMessagesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
-		{Name: "hello", Type: field.TypeUUID},
+		{Name: "json", Type: field.TypeJSON},
 	}
 	// InvalidFieldMessagesTable holds the schema information for the "invalid_field_messages" table.
 	InvalidFieldMessagesTable = &schema.Table{
@@ -147,6 +158,25 @@ var (
 		PrimaryKey:  []*schema.Column{MessageWithIdsColumns[0]},
 		ForeignKeys: []*schema.ForeignKey{},
 	}
+	// MessageWithOptionalsColumns holds the columns for the "message_with_optionals" table.
+	MessageWithOptionalsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "str_optional", Type: field.TypeString, Nullable: true},
+		{Name: "int_optional", Type: field.TypeInt8, Nullable: true},
+		{Name: "uint_optional", Type: field.TypeUint8, Nullable: true},
+		{Name: "float_optional", Type: field.TypeFloat32, Nullable: true},
+		{Name: "bool_optional", Type: field.TypeBool, Nullable: true},
+		{Name: "bytes_optional", Type: field.TypeBytes, Nullable: true},
+		{Name: "uuid_optional", Type: field.TypeUUID, Nullable: true},
+		{Name: "time_optional", Type: field.TypeTime, Nullable: true},
+	}
+	// MessageWithOptionalsTable holds the schema information for the "message_with_optionals" table.
+	MessageWithOptionalsTable = &schema.Table{
+		Name:        "message_with_optionals",
+		Columns:     MessageWithOptionalsColumns,
+		PrimaryKey:  []*schema.Column{MessageWithOptionalsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{},
+	}
 	// MessageWithPackageNamesColumns holds the columns for the "message_with_package_names" table.
 	MessageWithPackageNamesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -173,9 +203,8 @@ var (
 		PrimaryKey: []*schema.Column{PortalsColumns[0]},
 		ForeignKeys: []*schema.ForeignKey{
 			{
-				Symbol:  "portals_categories_category",
-				Columns: []*schema.Column{PortalsColumns[3]},
-
+				Symbol:     "portals_categories_category",
+				Columns:    []*schema.Column{PortalsColumns[3]},
 				RefColumns: []*schema.Column{CategoriesColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -185,19 +214,31 @@ var (
 	UsersColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "user_name", Type: field.TypeString},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"pending", "active"}},
+		{Name: "user_profile_pic", Type: field.TypeUUID, Nullable: true},
 	}
 	// UsersTable holds the schema information for the "users" table.
 	UsersTable = &schema.Table{
-		Name:        "users",
-		Columns:     UsersColumns,
-		PrimaryKey:  []*schema.Column{UsersColumns[0]},
-		ForeignKeys: []*schema.ForeignKey{},
+		Name:       "users",
+		Columns:    UsersColumns,
+		PrimaryKey: []*schema.Column{UsersColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "users_images_profile_pic",
+				Columns:    []*schema.Column{UsersColumns[3]},
+				RefColumns: []*schema.Column{ImagesColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
 	}
 	// ValidMessagesColumns holds the columns for the "valid_messages" table.
 	ValidMessagesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "name", Type: field.TypeString},
 		{Name: "ts", Type: field.TypeTime},
+		{Name: "uuid", Type: field.TypeUUID},
+		{Name: "u8", Type: field.TypeUint8},
+		{Name: "opti8", Type: field.TypeInt8, Nullable: true},
 	}
 	// ValidMessagesTable holds the schema information for the "valid_messages" table.
 	ValidMessagesTable = &schema.Table{
@@ -218,16 +259,14 @@ var (
 		PrimaryKey: []*schema.Column{CategoryBlogPostsColumns[0], CategoryBlogPostsColumns[1]},
 		ForeignKeys: []*schema.ForeignKey{
 			{
-				Symbol:  "category_blog_posts_category_id",
-				Columns: []*schema.Column{CategoryBlogPostsColumns[0]},
-
+				Symbol:     "category_blog_posts_category_id",
+				Columns:    []*schema.Column{CategoryBlogPostsColumns[0]},
 				RefColumns: []*schema.Column{CategoriesColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
 			{
-				Symbol:  "category_blog_posts_blog_post_id",
-				Columns: []*schema.Column{CategoryBlogPostsColumns[1]},
-
+				Symbol:     "category_blog_posts_blog_post_id",
+				Columns:    []*schema.Column{CategoryBlogPostsColumns[1]},
 				RefColumns: []*schema.Column{BlogPostsColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
@@ -240,11 +279,13 @@ var (
 		DependsOnSkippedsTable,
 		DuplicateNumberMessagesTable,
 		ExplicitSkippedMessagesTable,
+		ImagesTable,
 		ImplicitSkippedMessagesTable,
 		InvalidFieldMessagesTable,
 		MessageWithEnumsTable,
 		MessageWithFieldOnesTable,
 		MessageWithIdsTable,
+		MessageWithOptionalsTable,
 		MessageWithPackageNamesTable,
 		PortalsTable,
 		UsersTable,
@@ -257,6 +298,7 @@ func init() {
 	BlogPostsTable.ForeignKeys[0].RefTable = UsersTable
 	ImplicitSkippedMessagesTable.ForeignKeys[0].RefTable = DependsOnSkippedsTable
 	PortalsTable.ForeignKeys[0].RefTable = CategoriesTable
+	UsersTable.ForeignKeys[0].RefTable = ImagesTable
 	CategoryBlogPostsTable.ForeignKeys[0].RefTable = CategoriesTable
 	CategoryBlogPostsTable.ForeignKeys[1].RefTable = BlogPostsTable
 }

@@ -29,11 +29,13 @@ type hooks struct {
 	DependsOnSkipped       []ent.Hook
 	DuplicateNumberMessage []ent.Hook
 	ExplicitSkippedMessage []ent.Hook
+	Image                  []ent.Hook
 	ImplicitSkippedMessage []ent.Hook
 	InvalidFieldMessage    []ent.Hook
 	MessageWithEnum        []ent.Hook
 	MessageWithFieldOne    []ent.Hook
 	MessageWithID          []ent.Hook
+	MessageWithOptionals   []ent.Hook
 	MessageWithPackageName []ent.Hook
 	Portal                 []ent.Hook
 	User                   []ent.Hook

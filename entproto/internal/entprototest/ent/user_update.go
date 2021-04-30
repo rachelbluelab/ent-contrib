@@ -7,11 +7,13 @@ import (
 	"fmt"
 
 	"entgo.io/contrib/entproto/internal/entprototest/ent/blogpost"
+	"entgo.io/contrib/entproto/internal/entprototest/ent/image"
 	"entgo.io/contrib/entproto/internal/entprototest/ent/predicate"
 	"entgo.io/contrib/entproto/internal/entprototest/ent/user"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/google/uuid"
 )
 
 // UserUpdate is the builder for updating User entities.
@@ -33,6 +35,12 @@ func (uu *UserUpdate) SetUserName(s string) *UserUpdate {
 	return uu
 }
 
+// SetStatus sets the "status" field.
+func (uu *UserUpdate) SetStatus(u user.Status) *UserUpdate {
+	uu.mutation.SetStatus(u)
+	return uu
+}
+
 // AddBlogPostIDs adds the "blog_posts" edge to the BlogPost entity by IDs.
 func (uu *UserUpdate) AddBlogPostIDs(ids ...int) *UserUpdate {
 	uu.mutation.AddBlogPostIDs(ids...)
@@ -46,6 +54,25 @@ func (uu *UserUpdate) AddBlogPosts(b ...*BlogPost) *UserUpdate {
 		ids[i] = b[i].ID
 	}
 	return uu.AddBlogPostIDs(ids...)
+}
+
+// SetProfilePicID sets the "profile_pic" edge to the Image entity by ID.
+func (uu *UserUpdate) SetProfilePicID(id uuid.UUID) *UserUpdate {
+	uu.mutation.SetProfilePicID(id)
+	return uu
+}
+
+// SetNillableProfilePicID sets the "profile_pic" edge to the Image entity by ID if the given value is not nil.
+func (uu *UserUpdate) SetNillableProfilePicID(id *uuid.UUID) *UserUpdate {
+	if id != nil {
+		uu = uu.SetProfilePicID(*id)
+	}
+	return uu
+}
+
+// SetProfilePic sets the "profile_pic" edge to the Image entity.
+func (uu *UserUpdate) SetProfilePic(i *Image) *UserUpdate {
+	return uu.SetProfilePicID(i.ID)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -74,6 +101,12 @@ func (uu *UserUpdate) RemoveBlogPosts(b ...*BlogPost) *UserUpdate {
 	return uu.RemoveBlogPostIDs(ids...)
 }
 
+// ClearProfilePic clears the "profile_pic" edge to the Image entity.
+func (uu *UserUpdate) ClearProfilePic() *UserUpdate {
+	uu.mutation.ClearProfilePic()
+	return uu
+}
+
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (uu *UserUpdate) Save(ctx context.Context) (int, error) {
 	var (
@@ -81,12 +114,18 @@ func (uu *UserUpdate) Save(ctx context.Context) (int, error) {
 		affected int
 	)
 	if len(uu.hooks) == 0 {
+		if err = uu.check(); err != nil {
+			return 0, err
+		}
 		affected, err = uu.sqlSave(ctx)
 	} else {
 		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
 			mutation, ok := m.(*UserMutation)
 			if !ok {
 				return nil, fmt.Errorf("unexpected mutation type %T", m)
+			}
+			if err = uu.check(); err != nil {
+				return 0, err
 			}
 			uu.mutation = mutation
 			affected, err = uu.sqlSave(ctx)
@@ -125,6 +164,16 @@ func (uu *UserUpdate) ExecX(ctx context.Context) {
 	}
 }
 
+// check runs all checks and user-defined validators on the builder.
+func (uu *UserUpdate) check() error {
+	if v, ok := uu.mutation.Status(); ok {
+		if err := user.StatusValidator(v); err != nil {
+			return &ValidationError{Name: "status", err: fmt.Errorf("ent: validator failed for field \"status\": %w", err)}
+		}
+	}
+	return nil
+}
+
 func (uu *UserUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	_spec := &sqlgraph.UpdateSpec{
 		Node: &sqlgraph.NodeSpec{
@@ -148,6 +197,13 @@ func (uu *UserUpdate) sqlSave(ctx context.Context) (n int, err error) {
 			Type:   field.TypeString,
 			Value:  value,
 			Column: user.FieldUserName,
+		})
+	}
+	if value, ok := uu.mutation.Status(); ok {
+		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
+			Type:   field.TypeEnum,
+			Value:  value,
+			Column: user.FieldStatus,
 		})
 	}
 	if uu.mutation.BlogPostsCleared() {
@@ -204,6 +260,41 @@ func (uu *UserUpdate) sqlSave(ctx context.Context) (n int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if uu.mutation.ProfilePicCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   user.ProfilePicTable,
+			Columns: []string{user.ProfilePicColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeUUID,
+					Column: image.FieldID,
+				},
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := uu.mutation.ProfilePicIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   user.ProfilePicTable,
+			Columns: []string{user.ProfilePicColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeUUID,
+					Column: image.FieldID,
+				},
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if n, err = sqlgraph.UpdateNodes(ctx, uu.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{user.Label}
@@ -228,6 +319,12 @@ func (uuo *UserUpdateOne) SetUserName(s string) *UserUpdateOne {
 	return uuo
 }
 
+// SetStatus sets the "status" field.
+func (uuo *UserUpdateOne) SetStatus(u user.Status) *UserUpdateOne {
+	uuo.mutation.SetStatus(u)
+	return uuo
+}
+
 // AddBlogPostIDs adds the "blog_posts" edge to the BlogPost entity by IDs.
 func (uuo *UserUpdateOne) AddBlogPostIDs(ids ...int) *UserUpdateOne {
 	uuo.mutation.AddBlogPostIDs(ids...)
@@ -241,6 +338,25 @@ func (uuo *UserUpdateOne) AddBlogPosts(b ...*BlogPost) *UserUpdateOne {
 		ids[i] = b[i].ID
 	}
 	return uuo.AddBlogPostIDs(ids...)
+}
+
+// SetProfilePicID sets the "profile_pic" edge to the Image entity by ID.
+func (uuo *UserUpdateOne) SetProfilePicID(id uuid.UUID) *UserUpdateOne {
+	uuo.mutation.SetProfilePicID(id)
+	return uuo
+}
+
+// SetNillableProfilePicID sets the "profile_pic" edge to the Image entity by ID if the given value is not nil.
+func (uuo *UserUpdateOne) SetNillableProfilePicID(id *uuid.UUID) *UserUpdateOne {
+	if id != nil {
+		uuo = uuo.SetProfilePicID(*id)
+	}
+	return uuo
+}
+
+// SetProfilePic sets the "profile_pic" edge to the Image entity.
+func (uuo *UserUpdateOne) SetProfilePic(i *Image) *UserUpdateOne {
+	return uuo.SetProfilePicID(i.ID)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -269,6 +385,12 @@ func (uuo *UserUpdateOne) RemoveBlogPosts(b ...*BlogPost) *UserUpdateOne {
 	return uuo.RemoveBlogPostIDs(ids...)
 }
 
+// ClearProfilePic clears the "profile_pic" edge to the Image entity.
+func (uuo *UserUpdateOne) ClearProfilePic() *UserUpdateOne {
+	uuo.mutation.ClearProfilePic()
+	return uuo
+}
+
 // Save executes the query and returns the updated User entity.
 func (uuo *UserUpdateOne) Save(ctx context.Context) (*User, error) {
 	var (
@@ -276,12 +398,18 @@ func (uuo *UserUpdateOne) Save(ctx context.Context) (*User, error) {
 		node *User
 	)
 	if len(uuo.hooks) == 0 {
+		if err = uuo.check(); err != nil {
+			return nil, err
+		}
 		node, err = uuo.sqlSave(ctx)
 	} else {
 		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
 			mutation, ok := m.(*UserMutation)
 			if !ok {
 				return nil, fmt.Errorf("unexpected mutation type %T", m)
+			}
+			if err = uuo.check(); err != nil {
+				return nil, err
 			}
 			uuo.mutation = mutation
 			node, err = uuo.sqlSave(ctx)
@@ -320,6 +448,16 @@ func (uuo *UserUpdateOne) ExecX(ctx context.Context) {
 	}
 }
 
+// check runs all checks and user-defined validators on the builder.
+func (uuo *UserUpdateOne) check() error {
+	if v, ok := uuo.mutation.Status(); ok {
+		if err := user.StatusValidator(v); err != nil {
+			return &ValidationError{Name: "status", err: fmt.Errorf("ent: validator failed for field \"status\": %w", err)}
+		}
+	}
+	return nil
+}
+
 func (uuo *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	_spec := &sqlgraph.UpdateSpec{
 		Node: &sqlgraph.NodeSpec{
@@ -348,6 +486,13 @@ func (uuo *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) 
 			Type:   field.TypeString,
 			Value:  value,
 			Column: user.FieldUserName,
+		})
+	}
+	if value, ok := uuo.mutation.Status(); ok {
+		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
+			Type:   field.TypeEnum,
+			Value:  value,
+			Column: user.FieldStatus,
 		})
 	}
 	if uuo.mutation.BlogPostsCleared() {
@@ -396,6 +541,41 @@ func (uuo *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) 
 				IDSpec: &sqlgraph.FieldSpec{
 					Type:   field.TypeInt,
 					Column: blogpost.FieldID,
+				},
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if uuo.mutation.ProfilePicCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   user.ProfilePicTable,
+			Columns: []string{user.ProfilePicColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeUUID,
+					Column: image.FieldID,
+				},
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := uuo.mutation.ProfilePicIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   user.ProfilePicTable,
+			Columns: []string{user.ProfilePicColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeUUID,
+					Column: image.FieldID,
 				},
 			},
 		}

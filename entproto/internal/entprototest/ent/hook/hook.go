@@ -74,6 +74,19 @@ func (f ExplicitSkippedMessageFunc) Mutate(ctx context.Context, m ent.Mutation) 
 	return f(ctx, mv)
 }
 
+// The ImageFunc type is an adapter to allow the use of ordinary
+// function as Image mutator.
+type ImageFunc func(context.Context, *ent.ImageMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ImageFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	mv, ok := m.(*ent.ImageMutation)
+	if !ok {
+		return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ImageMutation", m)
+	}
+	return f(ctx, mv)
+}
+
 // The ImplicitSkippedMessageFunc type is an adapter to allow the use of ordinary
 // function as ImplicitSkippedMessage mutator.
 type ImplicitSkippedMessageFunc func(context.Context, *ent.ImplicitSkippedMessageMutation) (ent.Value, error)
@@ -135,6 +148,19 @@ func (f MessageWithIDFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Valu
 	mv, ok := m.(*ent.MessageWithIDMutation)
 	if !ok {
 		return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MessageWithIDMutation", m)
+	}
+	return f(ctx, mv)
+}
+
+// The MessageWithOptionalsFunc type is an adapter to allow the use of ordinary
+// function as MessageWithOptionals mutator.
+type MessageWithOptionalsFunc func(context.Context, *ent.MessageWithOptionalsMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f MessageWithOptionalsFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	mv, ok := m.(*ent.MessageWithOptionalsMutation)
+	if !ok {
+		return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MessageWithOptionalsMutation", m)
 	}
 	return f(ctx, mv)
 }
