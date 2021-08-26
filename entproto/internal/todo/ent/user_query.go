@@ -16,6 +16,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/google/uuid"
 )
 
 // UserQuery is the builder for querying User entities.
@@ -23,12 +24,14 @@ type UserQuery struct {
 	config
 	limit      *int
 	offset     *int
+	unique     *bool
 	order      []OrderFunc
 	fields     []string
 	predicates []predicate.User
 	// eager-loading edges.
 	withGroup      *GroupQuery
 	withAttachment *AttachmentQuery
+	withReceived   *AttachmentQuery
 	withFKs        bool
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
@@ -50,6 +53,13 @@ func (uq *UserQuery) Limit(limit int) *UserQuery {
 // Offset adds an offset step to the query.
 func (uq *UserQuery) Offset(offset int) *UserQuery {
 	uq.offset = &offset
+	return uq
+}
+
+// Unique configures the query builder to filter duplicate records on query.
+// By default, unique is set to true, and can be disabled using this method.
+func (uq *UserQuery) Unique(unique bool) *UserQuery {
+	uq.unique = &unique
 	return uq
 }
 
@@ -96,6 +106,28 @@ func (uq *UserQuery) QueryAttachment() *AttachmentQuery {
 			sqlgraph.From(user.Table, user.FieldID, selector),
 			sqlgraph.To(attachment.Table, attachment.FieldID),
 			sqlgraph.Edge(sqlgraph.O2O, false, user.AttachmentTable, user.AttachmentColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(uq.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryReceived chains the current query on the "received" edge.
+func (uq *UserQuery) QueryReceived() *AttachmentQuery {
+	query := &AttachmentQuery{config: uq.config}
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := uq.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := uq.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(attachment.Table, attachment.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, true, user.ReceivedTable, user.ReceivedPrimaryKey...),
 		)
 		fromU = sqlgraph.SetNeighbors(uq.driver.Dialect(), step)
 		return fromU, nil
@@ -286,6 +318,7 @@ func (uq *UserQuery) Clone() *UserQuery {
 		predicates:     append([]predicate.User{}, uq.predicates...),
 		withGroup:      uq.withGroup.Clone(),
 		withAttachment: uq.withAttachment.Clone(),
+		withReceived:   uq.withReceived.Clone(),
 		// clone intermediate query.
 		sql:  uq.sql.Clone(),
 		path: uq.path,
@@ -311,6 +344,17 @@ func (uq *UserQuery) WithAttachment(opts ...func(*AttachmentQuery)) *UserQuery {
 		opt(query)
 	}
 	uq.withAttachment = query
+	return uq
+}
+
+// WithReceived tells the query-builder to eager-load the nodes that are connected to
+// the "received" edge. The optional arguments are used to configure the query builder of the edge.
+func (uq *UserQuery) WithReceived(opts ...func(*AttachmentQuery)) *UserQuery {
+	query := &AttachmentQuery{config: uq.config}
+	for _, opt := range opts {
+		opt(query)
+	}
+	uq.withReceived = query
 	return uq
 }
 
@@ -354,8 +398,8 @@ func (uq *UserQuery) GroupBy(field string, fields ...string) *UserGroupBy {
 //		Select(user.FieldUserName).
 //		Scan(ctx, &v)
 //
-func (uq *UserQuery) Select(field string, fields ...string) *UserSelect {
-	uq.fields = append([]string{field}, fields...)
+func (uq *UserQuery) Select(fields ...string) *UserSelect {
+	uq.fields = append(uq.fields, fields...)
 	return &UserSelect{UserQuery: uq}
 }
 
@@ -380,9 +424,10 @@ func (uq *UserQuery) sqlAll(ctx context.Context) ([]*User, error) {
 		nodes       = []*User{}
 		withFKs     = uq.withFKs
 		_spec       = uq.querySpec()
-		loadedTypes = [2]bool{
+		loadedTypes = [3]bool{
 			uq.withGroup != nil,
 			uq.withAttachment != nil,
+			uq.withReceived != nil,
 		}
 	)
 	if uq.withGroup != nil {
@@ -415,11 +460,14 @@ func (uq *UserQuery) sqlAll(ctx context.Context) ([]*User, error) {
 		ids := make([]int, 0, len(nodes))
 		nodeids := make(map[int][]*User)
 		for i := range nodes {
-			fk := nodes[i].user_group
-			if fk != nil {
-				ids = append(ids, *fk)
-				nodeids[*fk] = append(nodeids[*fk], nodes[i])
+			if nodes[i].user_group == nil {
+				continue
 			}
+			fk := *nodes[i].user_group
+			if _, ok := nodeids[fk]; !ok {
+				ids = append(ids, fk)
+			}
+			nodeids[fk] = append(nodeids[fk], nodes[i])
 		}
 		query.Where(group.IDIn(ids...))
 		neighbors, err := query.All(ctx)
@@ -465,6 +513,71 @@ func (uq *UserQuery) sqlAll(ctx context.Context) ([]*User, error) {
 		}
 	}
 
+	if query := uq.withReceived; query != nil {
+		fks := make([]driver.Value, 0, len(nodes))
+		ids := make(map[int]*User, len(nodes))
+		for _, node := range nodes {
+			ids[node.ID] = node
+			fks = append(fks, node.ID)
+			node.Edges.Received = []*Attachment{}
+		}
+		var (
+			edgeids []uuid.UUID
+			edges   = make(map[uuid.UUID][]*User)
+		)
+		_spec := &sqlgraph.EdgeQuerySpec{
+			Edge: &sqlgraph.EdgeSpec{
+				Inverse: true,
+				Table:   user.ReceivedTable,
+				Columns: user.ReceivedPrimaryKey,
+			},
+			Predicate: func(s *sql.Selector) {
+				s.Where(sql.InValues(user.ReceivedPrimaryKey[1], fks...))
+			},
+			ScanValues: func() [2]interface{} {
+				return [2]interface{}{new(sql.NullInt64), new(uuid.UUID)}
+			},
+			Assign: func(out, in interface{}) error {
+				eout, ok := out.(*sql.NullInt64)
+				if !ok || eout == nil {
+					return fmt.Errorf("unexpected id value for edge-out")
+				}
+				ein, ok := in.(*uuid.UUID)
+				if !ok || ein == nil {
+					return fmt.Errorf("unexpected id value for edge-in")
+				}
+				outValue := int(eout.Int64)
+				inValue := *ein
+				node, ok := ids[outValue]
+				if !ok {
+					return fmt.Errorf("unexpected node id in edges: %v", outValue)
+				}
+				if _, ok := edges[inValue]; !ok {
+					edgeids = append(edgeids, inValue)
+				}
+				edges[inValue] = append(edges[inValue], node)
+				return nil
+			},
+		}
+		if err := sqlgraph.QueryEdges(ctx, uq.driver, _spec); err != nil {
+			return nil, fmt.Errorf(`query edges "received": %w`, err)
+		}
+		query.Where(attachment.IDIn(edgeids...))
+		neighbors, err := query.All(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, n := range neighbors {
+			nodes, ok := edges[n.ID]
+			if !ok {
+				return nil, fmt.Errorf(`unexpected "received" node returned %v`, n.ID)
+			}
+			for i := range nodes {
+				nodes[i].Edges.Received = append(nodes[i].Edges.Received, n)
+			}
+		}
+	}
+
 	return nodes, nil
 }
 
@@ -494,6 +607,9 @@ func (uq *UserQuery) querySpec() *sqlgraph.QuerySpec {
 		From:   uq.sql,
 		Unique: true,
 	}
+	if unique := uq.unique; unique != nil {
+		_spec.Unique = *unique
+	}
 	if fields := uq.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, user.FieldID)
@@ -519,7 +635,7 @@ func (uq *UserQuery) querySpec() *sqlgraph.QuerySpec {
 	if ps := uq.order; len(ps) > 0 {
 		_spec.Order = func(selector *sql.Selector) {
 			for i := range ps {
-				ps[i](selector, user.ValidColumn)
+				ps[i](selector)
 			}
 		}
 	}
@@ -529,16 +645,20 @@ func (uq *UserQuery) querySpec() *sqlgraph.QuerySpec {
 func (uq *UserQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(uq.driver.Dialect())
 	t1 := builder.Table(user.Table)
-	selector := builder.Select(t1.Columns(user.Columns...)...).From(t1)
+	columns := uq.fields
+	if len(columns) == 0 {
+		columns = user.Columns
+	}
+	selector := builder.Select(t1.Columns(columns...)...).From(t1)
 	if uq.sql != nil {
 		selector = uq.sql
-		selector.Select(selector.Columns(user.Columns...)...)
+		selector.Select(selector.Columns(columns...)...)
 	}
 	for _, p := range uq.predicates {
 		p(selector)
 	}
 	for _, p := range uq.order {
-		p(selector, user.ValidColumn)
+		p(selector)
 	}
 	if offset := uq.offset; offset != nil {
 		// limit is mandatory for offset clause. We start
@@ -800,13 +920,24 @@ func (ugb *UserGroupBy) sqlScan(ctx context.Context, v interface{}) error {
 }
 
 func (ugb *UserGroupBy) sqlQuery() *sql.Selector {
-	selector := ugb.sql
-	columns := make([]string, 0, len(ugb.fields)+len(ugb.fns))
-	columns = append(columns, ugb.fields...)
+	selector := ugb.sql.Select()
+	aggregation := make([]string, 0, len(ugb.fns))
 	for _, fn := range ugb.fns {
-		columns = append(columns, fn(selector, user.ValidColumn))
+		aggregation = append(aggregation, fn(selector))
 	}
-	return selector.Select(columns...).GroupBy(ugb.fields...)
+	// If no columns were selected in a custom aggregation function, the default
+	// selection is the fields used for "group-by", and the aggregation functions.
+	if len(selector.SelectedColumns()) == 0 {
+		columns := make([]string, 0, len(ugb.fields)+len(ugb.fns))
+		for _, f := range ugb.fields {
+			columns = append(columns, selector.C(f))
+		}
+		for _, c := range aggregation {
+			columns = append(columns, c)
+		}
+		selector.Select(columns...)
+	}
+	return selector.GroupBy(selector.Columns(ugb.fields...)...)
 }
 
 // UserSelect is the builder for selecting fields of User entities.
@@ -1022,16 +1153,10 @@ func (us *UserSelect) BoolX(ctx context.Context) bool {
 
 func (us *UserSelect) sqlScan(ctx context.Context, v interface{}) error {
 	rows := &sql.Rows{}
-	query, args := us.sqlQuery().Query()
+	query, args := us.sql.Query()
 	if err := us.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}
 	defer rows.Close()
 	return sql.ScanSlice(rows, v)
-}
-
-func (us *UserSelect) sqlQuery() sql.Querier {
-	selector := us.sql
-	selector.Select(selector.Columns(us.fields...)...)
-	return selector
 }

@@ -23,6 +23,7 @@ type ImageQuery struct {
 	config
 	limit      *int
 	offset     *int
+	unique     *bool
 	order      []OrderFunc
 	fields     []string
 	predicates []predicate.Image
@@ -48,6 +49,13 @@ func (iq *ImageQuery) Limit(limit int) *ImageQuery {
 // Offset adds an offset step to the query.
 func (iq *ImageQuery) Offset(offset int) *ImageQuery {
 	iq.offset = &offset
+	return iq
+}
+
+// Unique configures the query builder to filter duplicate records on query.
+// By default, unique is set to true, and can be disabled using this method.
+func (iq *ImageQuery) Unique(unique bool) *ImageQuery {
+	iq.unique = &unique
 	return iq
 }
 
@@ -318,8 +326,8 @@ func (iq *ImageQuery) GroupBy(field string, fields ...string) *ImageGroupBy {
 //		Select(image.FieldURLPath).
 //		Scan(ctx, &v)
 //
-func (iq *ImageQuery) Select(field string, fields ...string) *ImageSelect {
-	iq.fields = append([]string{field}, fields...)
+func (iq *ImageQuery) Select(fields ...string) *ImageSelect {
+	iq.fields = append(iq.fields, fields...)
 	return &ImageSelect{ImageQuery: iq}
 }
 
@@ -425,6 +433,9 @@ func (iq *ImageQuery) querySpec() *sqlgraph.QuerySpec {
 		From:   iq.sql,
 		Unique: true,
 	}
+	if unique := iq.unique; unique != nil {
+		_spec.Unique = *unique
+	}
 	if fields := iq.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, image.FieldID)
@@ -450,7 +461,7 @@ func (iq *ImageQuery) querySpec() *sqlgraph.QuerySpec {
 	if ps := iq.order; len(ps) > 0 {
 		_spec.Order = func(selector *sql.Selector) {
 			for i := range ps {
-				ps[i](selector, image.ValidColumn)
+				ps[i](selector)
 			}
 		}
 	}
@@ -460,16 +471,20 @@ func (iq *ImageQuery) querySpec() *sqlgraph.QuerySpec {
 func (iq *ImageQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(iq.driver.Dialect())
 	t1 := builder.Table(image.Table)
-	selector := builder.Select(t1.Columns(image.Columns...)...).From(t1)
+	columns := iq.fields
+	if len(columns) == 0 {
+		columns = image.Columns
+	}
+	selector := builder.Select(t1.Columns(columns...)...).From(t1)
 	if iq.sql != nil {
 		selector = iq.sql
-		selector.Select(selector.Columns(image.Columns...)...)
+		selector.Select(selector.Columns(columns...)...)
 	}
 	for _, p := range iq.predicates {
 		p(selector)
 	}
 	for _, p := range iq.order {
-		p(selector, image.ValidColumn)
+		p(selector)
 	}
 	if offset := iq.offset; offset != nil {
 		// limit is mandatory for offset clause. We start
@@ -731,13 +746,24 @@ func (igb *ImageGroupBy) sqlScan(ctx context.Context, v interface{}) error {
 }
 
 func (igb *ImageGroupBy) sqlQuery() *sql.Selector {
-	selector := igb.sql
-	columns := make([]string, 0, len(igb.fields)+len(igb.fns))
-	columns = append(columns, igb.fields...)
+	selector := igb.sql.Select()
+	aggregation := make([]string, 0, len(igb.fns))
 	for _, fn := range igb.fns {
-		columns = append(columns, fn(selector, image.ValidColumn))
+		aggregation = append(aggregation, fn(selector))
 	}
-	return selector.Select(columns...).GroupBy(igb.fields...)
+	// If no columns were selected in a custom aggregation function, the default
+	// selection is the fields used for "group-by", and the aggregation functions.
+	if len(selector.SelectedColumns()) == 0 {
+		columns := make([]string, 0, len(igb.fields)+len(igb.fns))
+		for _, f := range igb.fields {
+			columns = append(columns, selector.C(f))
+		}
+		for _, c := range aggregation {
+			columns = append(columns, c)
+		}
+		selector.Select(columns...)
+	}
+	return selector.GroupBy(selector.Columns(igb.fields...)...)
 }
 
 // ImageSelect is the builder for selecting fields of Image entities.
@@ -953,16 +979,10 @@ func (is *ImageSelect) BoolX(ctx context.Context) bool {
 
 func (is *ImageSelect) sqlScan(ctx context.Context, v interface{}) error {
 	rows := &sql.Rows{}
-	query, args := is.sqlQuery().Query()
+	query, args := is.sql.Query()
 	if err := is.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}
 	defer rows.Close()
 	return sql.ScanSlice(rows, v)
-}
-
-func (is *ImageSelect) sqlQuery() sql.Querier {
-	selector := is.sql
-	selector.Select(selector.Columns(is.fields...)...)
-	return selector
 }

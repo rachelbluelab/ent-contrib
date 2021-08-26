@@ -20,6 +20,7 @@ type DuplicateNumberMessageQuery struct {
 	config
 	limit      *int
 	offset     *int
+	unique     *bool
 	order      []OrderFunc
 	fields     []string
 	predicates []predicate.DuplicateNumberMessage
@@ -43,6 +44,13 @@ func (dnmq *DuplicateNumberMessageQuery) Limit(limit int) *DuplicateNumberMessag
 // Offset adds an offset step to the query.
 func (dnmq *DuplicateNumberMessageQuery) Offset(offset int) *DuplicateNumberMessageQuery {
 	dnmq.offset = &offset
+	return dnmq
+}
+
+// Unique configures the query builder to filter duplicate records on query.
+// By default, unique is set to true, and can be disabled using this method.
+func (dnmq *DuplicateNumberMessageQuery) Unique(unique bool) *DuplicateNumberMessageQuery {
+	dnmq.unique = &unique
 	return dnmq
 }
 
@@ -279,8 +287,8 @@ func (dnmq *DuplicateNumberMessageQuery) GroupBy(field string, fields ...string)
 //		Select(duplicatenumbermessage.FieldHello).
 //		Scan(ctx, &v)
 //
-func (dnmq *DuplicateNumberMessageQuery) Select(field string, fields ...string) *DuplicateNumberMessageSelect {
-	dnmq.fields = append([]string{field}, fields...)
+func (dnmq *DuplicateNumberMessageQuery) Select(fields ...string) *DuplicateNumberMessageSelect {
+	dnmq.fields = append(dnmq.fields, fields...)
 	return &DuplicateNumberMessageSelect{DuplicateNumberMessageQuery: dnmq}
 }
 
@@ -352,6 +360,9 @@ func (dnmq *DuplicateNumberMessageQuery) querySpec() *sqlgraph.QuerySpec {
 		From:   dnmq.sql,
 		Unique: true,
 	}
+	if unique := dnmq.unique; unique != nil {
+		_spec.Unique = *unique
+	}
 	if fields := dnmq.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, duplicatenumbermessage.FieldID)
@@ -377,7 +388,7 @@ func (dnmq *DuplicateNumberMessageQuery) querySpec() *sqlgraph.QuerySpec {
 	if ps := dnmq.order; len(ps) > 0 {
 		_spec.Order = func(selector *sql.Selector) {
 			for i := range ps {
-				ps[i](selector, duplicatenumbermessage.ValidColumn)
+				ps[i](selector)
 			}
 		}
 	}
@@ -387,16 +398,20 @@ func (dnmq *DuplicateNumberMessageQuery) querySpec() *sqlgraph.QuerySpec {
 func (dnmq *DuplicateNumberMessageQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(dnmq.driver.Dialect())
 	t1 := builder.Table(duplicatenumbermessage.Table)
-	selector := builder.Select(t1.Columns(duplicatenumbermessage.Columns...)...).From(t1)
+	columns := dnmq.fields
+	if len(columns) == 0 {
+		columns = duplicatenumbermessage.Columns
+	}
+	selector := builder.Select(t1.Columns(columns...)...).From(t1)
 	if dnmq.sql != nil {
 		selector = dnmq.sql
-		selector.Select(selector.Columns(duplicatenumbermessage.Columns...)...)
+		selector.Select(selector.Columns(columns...)...)
 	}
 	for _, p := range dnmq.predicates {
 		p(selector)
 	}
 	for _, p := range dnmq.order {
-		p(selector, duplicatenumbermessage.ValidColumn)
+		p(selector)
 	}
 	if offset := dnmq.offset; offset != nil {
 		// limit is mandatory for offset clause. We start
@@ -658,13 +673,24 @@ func (dnmgb *DuplicateNumberMessageGroupBy) sqlScan(ctx context.Context, v inter
 }
 
 func (dnmgb *DuplicateNumberMessageGroupBy) sqlQuery() *sql.Selector {
-	selector := dnmgb.sql
-	columns := make([]string, 0, len(dnmgb.fields)+len(dnmgb.fns))
-	columns = append(columns, dnmgb.fields...)
+	selector := dnmgb.sql.Select()
+	aggregation := make([]string, 0, len(dnmgb.fns))
 	for _, fn := range dnmgb.fns {
-		columns = append(columns, fn(selector, duplicatenumbermessage.ValidColumn))
+		aggregation = append(aggregation, fn(selector))
 	}
-	return selector.Select(columns...).GroupBy(dnmgb.fields...)
+	// If no columns were selected in a custom aggregation function, the default
+	// selection is the fields used for "group-by", and the aggregation functions.
+	if len(selector.SelectedColumns()) == 0 {
+		columns := make([]string, 0, len(dnmgb.fields)+len(dnmgb.fns))
+		for _, f := range dnmgb.fields {
+			columns = append(columns, selector.C(f))
+		}
+		for _, c := range aggregation {
+			columns = append(columns, c)
+		}
+		selector.Select(columns...)
+	}
+	return selector.GroupBy(selector.Columns(dnmgb.fields...)...)
 }
 
 // DuplicateNumberMessageSelect is the builder for selecting fields of DuplicateNumberMessage entities.
@@ -880,16 +906,10 @@ func (dnms *DuplicateNumberMessageSelect) BoolX(ctx context.Context) bool {
 
 func (dnms *DuplicateNumberMessageSelect) sqlScan(ctx context.Context, v interface{}) error {
 	rows := &sql.Rows{}
-	query, args := dnms.sqlQuery().Query()
+	query, args := dnms.sql.Query()
 	if err := dnms.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}
 	defer rows.Close()
 	return sql.ScanSlice(rows, v)
-}
-
-func (dnms *DuplicateNumberMessageSelect) sqlQuery() sql.Querier {
-	selector := dnms.sql
-	selector.Select(selector.Columns(dnms.fields...)...)
-	return selector
 }

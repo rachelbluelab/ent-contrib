@@ -22,6 +22,7 @@ type DependsOnSkippedQuery struct {
 	config
 	limit      *int
 	offset     *int
+	unique     *bool
 	order      []OrderFunc
 	fields     []string
 	predicates []predicate.DependsOnSkipped
@@ -47,6 +48,13 @@ func (dosq *DependsOnSkippedQuery) Limit(limit int) *DependsOnSkippedQuery {
 // Offset adds an offset step to the query.
 func (dosq *DependsOnSkippedQuery) Offset(offset int) *DependsOnSkippedQuery {
 	dosq.offset = &offset
+	return dosq
+}
+
+// Unique configures the query builder to filter duplicate records on query.
+// By default, unique is set to true, and can be disabled using this method.
+func (dosq *DependsOnSkippedQuery) Unique(unique bool) *DependsOnSkippedQuery {
+	dosq.unique = &unique
 	return dosq
 }
 
@@ -317,8 +325,8 @@ func (dosq *DependsOnSkippedQuery) GroupBy(field string, fields ...string) *Depe
 //		Select(dependsonskipped.FieldName).
 //		Scan(ctx, &v)
 //
-func (dosq *DependsOnSkippedQuery) Select(field string, fields ...string) *DependsOnSkippedSelect {
-	dosq.fields = append([]string{field}, fields...)
+func (dosq *DependsOnSkippedQuery) Select(fields ...string) *DependsOnSkippedSelect {
+	dosq.fields = append(dosq.fields, fields...)
 	return &DependsOnSkippedSelect{DependsOnSkippedQuery: dosq}
 }
 
@@ -424,6 +432,9 @@ func (dosq *DependsOnSkippedQuery) querySpec() *sqlgraph.QuerySpec {
 		From:   dosq.sql,
 		Unique: true,
 	}
+	if unique := dosq.unique; unique != nil {
+		_spec.Unique = *unique
+	}
 	if fields := dosq.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, dependsonskipped.FieldID)
@@ -449,7 +460,7 @@ func (dosq *DependsOnSkippedQuery) querySpec() *sqlgraph.QuerySpec {
 	if ps := dosq.order; len(ps) > 0 {
 		_spec.Order = func(selector *sql.Selector) {
 			for i := range ps {
-				ps[i](selector, dependsonskipped.ValidColumn)
+				ps[i](selector)
 			}
 		}
 	}
@@ -459,16 +470,20 @@ func (dosq *DependsOnSkippedQuery) querySpec() *sqlgraph.QuerySpec {
 func (dosq *DependsOnSkippedQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(dosq.driver.Dialect())
 	t1 := builder.Table(dependsonskipped.Table)
-	selector := builder.Select(t1.Columns(dependsonskipped.Columns...)...).From(t1)
+	columns := dosq.fields
+	if len(columns) == 0 {
+		columns = dependsonskipped.Columns
+	}
+	selector := builder.Select(t1.Columns(columns...)...).From(t1)
 	if dosq.sql != nil {
 		selector = dosq.sql
-		selector.Select(selector.Columns(dependsonskipped.Columns...)...)
+		selector.Select(selector.Columns(columns...)...)
 	}
 	for _, p := range dosq.predicates {
 		p(selector)
 	}
 	for _, p := range dosq.order {
-		p(selector, dependsonskipped.ValidColumn)
+		p(selector)
 	}
 	if offset := dosq.offset; offset != nil {
 		// limit is mandatory for offset clause. We start
@@ -730,13 +745,24 @@ func (dosgb *DependsOnSkippedGroupBy) sqlScan(ctx context.Context, v interface{}
 }
 
 func (dosgb *DependsOnSkippedGroupBy) sqlQuery() *sql.Selector {
-	selector := dosgb.sql
-	columns := make([]string, 0, len(dosgb.fields)+len(dosgb.fns))
-	columns = append(columns, dosgb.fields...)
+	selector := dosgb.sql.Select()
+	aggregation := make([]string, 0, len(dosgb.fns))
 	for _, fn := range dosgb.fns {
-		columns = append(columns, fn(selector, dependsonskipped.ValidColumn))
+		aggregation = append(aggregation, fn(selector))
 	}
-	return selector.Select(columns...).GroupBy(dosgb.fields...)
+	// If no columns were selected in a custom aggregation function, the default
+	// selection is the fields used for "group-by", and the aggregation functions.
+	if len(selector.SelectedColumns()) == 0 {
+		columns := make([]string, 0, len(dosgb.fields)+len(dosgb.fns))
+		for _, f := range dosgb.fields {
+			columns = append(columns, selector.C(f))
+		}
+		for _, c := range aggregation {
+			columns = append(columns, c)
+		}
+		selector.Select(columns...)
+	}
+	return selector.GroupBy(selector.Columns(dosgb.fields...)...)
 }
 
 // DependsOnSkippedSelect is the builder for selecting fields of DependsOnSkipped entities.
@@ -952,16 +978,10 @@ func (doss *DependsOnSkippedSelect) BoolX(ctx context.Context) bool {
 
 func (doss *DependsOnSkippedSelect) sqlScan(ctx context.Context, v interface{}) error {
 	rows := &sql.Rows{}
-	query, args := doss.sqlQuery().Query()
+	query, args := doss.sql.Query()
 	if err := doss.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}
 	defer rows.Close()
 	return sql.ScanSlice(rows, v)
-}
-
-func (doss *DependsOnSkippedSelect) sqlQuery() sql.Querier {
-	selector := doss.sql
-	selector.Select(selector.Columns(doss.fields...)...)
-	return selector
 }

@@ -21,6 +21,7 @@ type PortalQuery struct {
 	config
 	limit      *int
 	offset     *int
+	unique     *bool
 	order      []OrderFunc
 	fields     []string
 	predicates []predicate.Portal
@@ -47,6 +48,13 @@ func (pq *PortalQuery) Limit(limit int) *PortalQuery {
 // Offset adds an offset step to the query.
 func (pq *PortalQuery) Offset(offset int) *PortalQuery {
 	pq.offset = &offset
+	return pq
+}
+
+// Unique configures the query builder to filter duplicate records on query.
+// By default, unique is set to true, and can be disabled using this method.
+func (pq *PortalQuery) Unique(unique bool) *PortalQuery {
+	pq.unique = &unique
 	return pq
 }
 
@@ -317,8 +325,8 @@ func (pq *PortalQuery) GroupBy(field string, fields ...string) *PortalGroupBy {
 //		Select(portal.FieldName).
 //		Scan(ctx, &v)
 //
-func (pq *PortalQuery) Select(field string, fields ...string) *PortalSelect {
-	pq.fields = append([]string{field}, fields...)
+func (pq *PortalQuery) Select(fields ...string) *PortalSelect {
+	pq.fields = append(pq.fields, fields...)
 	return &PortalSelect{PortalQuery: pq}
 }
 
@@ -377,11 +385,14 @@ func (pq *PortalQuery) sqlAll(ctx context.Context) ([]*Portal, error) {
 		ids := make([]int, 0, len(nodes))
 		nodeids := make(map[int][]*Portal)
 		for i := range nodes {
-			fk := nodes[i].portal_category
-			if fk != nil {
-				ids = append(ids, *fk)
-				nodeids[*fk] = append(nodeids[*fk], nodes[i])
+			if nodes[i].portal_category == nil {
+				continue
 			}
+			fk := *nodes[i].portal_category
+			if _, ok := nodeids[fk]; !ok {
+				ids = append(ids, fk)
+			}
+			nodeids[fk] = append(nodeids[fk], nodes[i])
 		}
 		query.Where(category.IDIn(ids...))
 		neighbors, err := query.All(ctx)
@@ -428,6 +439,9 @@ func (pq *PortalQuery) querySpec() *sqlgraph.QuerySpec {
 		From:   pq.sql,
 		Unique: true,
 	}
+	if unique := pq.unique; unique != nil {
+		_spec.Unique = *unique
+	}
 	if fields := pq.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, portal.FieldID)
@@ -453,7 +467,7 @@ func (pq *PortalQuery) querySpec() *sqlgraph.QuerySpec {
 	if ps := pq.order; len(ps) > 0 {
 		_spec.Order = func(selector *sql.Selector) {
 			for i := range ps {
-				ps[i](selector, portal.ValidColumn)
+				ps[i](selector)
 			}
 		}
 	}
@@ -463,16 +477,20 @@ func (pq *PortalQuery) querySpec() *sqlgraph.QuerySpec {
 func (pq *PortalQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(pq.driver.Dialect())
 	t1 := builder.Table(portal.Table)
-	selector := builder.Select(t1.Columns(portal.Columns...)...).From(t1)
+	columns := pq.fields
+	if len(columns) == 0 {
+		columns = portal.Columns
+	}
+	selector := builder.Select(t1.Columns(columns...)...).From(t1)
 	if pq.sql != nil {
 		selector = pq.sql
-		selector.Select(selector.Columns(portal.Columns...)...)
+		selector.Select(selector.Columns(columns...)...)
 	}
 	for _, p := range pq.predicates {
 		p(selector)
 	}
 	for _, p := range pq.order {
-		p(selector, portal.ValidColumn)
+		p(selector)
 	}
 	if offset := pq.offset; offset != nil {
 		// limit is mandatory for offset clause. We start
@@ -734,13 +752,24 @@ func (pgb *PortalGroupBy) sqlScan(ctx context.Context, v interface{}) error {
 }
 
 func (pgb *PortalGroupBy) sqlQuery() *sql.Selector {
-	selector := pgb.sql
-	columns := make([]string, 0, len(pgb.fields)+len(pgb.fns))
-	columns = append(columns, pgb.fields...)
+	selector := pgb.sql.Select()
+	aggregation := make([]string, 0, len(pgb.fns))
 	for _, fn := range pgb.fns {
-		columns = append(columns, fn(selector, portal.ValidColumn))
+		aggregation = append(aggregation, fn(selector))
 	}
-	return selector.Select(columns...).GroupBy(pgb.fields...)
+	// If no columns were selected in a custom aggregation function, the default
+	// selection is the fields used for "group-by", and the aggregation functions.
+	if len(selector.SelectedColumns()) == 0 {
+		columns := make([]string, 0, len(pgb.fields)+len(pgb.fns))
+		for _, f := range pgb.fields {
+			columns = append(columns, selector.C(f))
+		}
+		for _, c := range aggregation {
+			columns = append(columns, c)
+		}
+		selector.Select(columns...)
+	}
+	return selector.GroupBy(selector.Columns(pgb.fields...)...)
 }
 
 // PortalSelect is the builder for selecting fields of Portal entities.
@@ -956,16 +985,10 @@ func (ps *PortalSelect) BoolX(ctx context.Context) bool {
 
 func (ps *PortalSelect) sqlScan(ctx context.Context, v interface{}) error {
 	rows := &sql.Rows{}
-	query, args := ps.sqlQuery().Query()
+	query, args := ps.sql.Query()
 	if err := ps.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}
 	defer rows.Close()
 	return sql.ScanSlice(rows, v)
-}
-
-func (ps *PortalSelect) sqlQuery() sql.Querier {
-	selector := ps.sql
-	selector.Select(selector.Columns(ps.fields...)...)
-	return selector
 }

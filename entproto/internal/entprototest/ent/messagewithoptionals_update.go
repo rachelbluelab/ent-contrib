@@ -22,9 +22,9 @@ type MessageWithOptionalsUpdate struct {
 	mutation *MessageWithOptionalsMutation
 }
 
-// Where adds a new predicate for the MessageWithOptionalsUpdate builder.
+// Where appends a list predicates to the MessageWithOptionalsUpdate builder.
 func (mwou *MessageWithOptionalsUpdate) Where(ps ...predicate.MessageWithOptionals) *MessageWithOptionalsUpdate {
-	mwou.mutation.predicates = append(mwou.mutation.predicates, ps...)
+	mwou.mutation.Where(ps...)
 	return mwou
 }
 
@@ -218,6 +218,9 @@ func (mwou *MessageWithOptionalsUpdate) Save(ctx context.Context) (int, error) {
 			return affected, err
 		})
 		for i := len(mwou.hooks) - 1; i >= 0; i-- {
+			if mwou.hooks[i] == nil {
+				return 0, fmt.Errorf("ent: uninitialized hook (forgotten import ent/runtime?)")
+			}
 			mut = mwou.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, mwou.mutation); err != nil {
@@ -395,8 +398,8 @@ func (mwou *MessageWithOptionalsUpdate) sqlSave(ctx context.Context) (n int, err
 	if n, err = sqlgraph.UpdateNodes(ctx, mwou.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{messagewithoptionals.Label}
-		} else if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		} else if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return 0, err
 	}
@@ -406,6 +409,7 @@ func (mwou *MessageWithOptionalsUpdate) sqlSave(ctx context.Context) (n int, err
 // MessageWithOptionalsUpdateOne is the builder for updating a single MessageWithOptionals entity.
 type MessageWithOptionalsUpdateOne struct {
 	config
+	fields   []string
 	hooks    []Hook
 	mutation *MessageWithOptionalsMutation
 }
@@ -580,6 +584,13 @@ func (mwouo *MessageWithOptionalsUpdateOne) Mutation() *MessageWithOptionalsMuta
 	return mwouo.mutation
 }
 
+// Select allows selecting one or more fields (columns) of the returned entity.
+// The default is selecting all fields defined in the entity schema.
+func (mwouo *MessageWithOptionalsUpdateOne) Select(field string, fields ...string) *MessageWithOptionalsUpdateOne {
+	mwouo.fields = append([]string{field}, fields...)
+	return mwouo
+}
+
 // Save executes the query and returns the updated MessageWithOptionals entity.
 func (mwouo *MessageWithOptionalsUpdateOne) Save(ctx context.Context) (*MessageWithOptionals, error) {
 	var (
@@ -600,6 +611,9 @@ func (mwouo *MessageWithOptionalsUpdateOne) Save(ctx context.Context) (*MessageW
 			return node, err
 		})
 		for i := len(mwouo.hooks) - 1; i >= 0; i-- {
+			if mwouo.hooks[i] == nil {
+				return nil, fmt.Errorf("ent: uninitialized hook (forgotten import ent/runtime?)")
+			}
 			mut = mwouo.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, mwouo.mutation); err != nil {
@@ -647,6 +661,18 @@ func (mwouo *MessageWithOptionalsUpdateOne) sqlSave(ctx context.Context) (_node 
 		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing MessageWithOptionals.ID for update")}
 	}
 	_spec.Node.ID.Value = id
+	if fields := mwouo.fields; len(fields) > 0 {
+		_spec.Node.Columns = make([]string, 0, len(fields))
+		_spec.Node.Columns = append(_spec.Node.Columns, messagewithoptionals.FieldID)
+		for _, f := range fields {
+			if !messagewithoptionals.ValidColumn(f) {
+				return nil, &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
+			}
+			if f != messagewithoptionals.FieldID {
+				_spec.Node.Columns = append(_spec.Node.Columns, f)
+			}
+		}
+	}
 	if ps := mwouo.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
@@ -785,8 +811,8 @@ func (mwouo *MessageWithOptionalsUpdateOne) sqlSave(ctx context.Context) (_node 
 	if err = sqlgraph.UpdateNode(ctx, mwouo.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{messagewithoptionals.Label}
-		} else if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		} else if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return nil, err
 	}

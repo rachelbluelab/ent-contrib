@@ -21,9 +21,9 @@ type ImageUpdate struct {
 	mutation *ImageMutation
 }
 
-// Where adds a new predicate for the ImageUpdate builder.
+// Where appends a list predicates to the ImageUpdate builder.
 func (iu *ImageUpdate) Where(ps ...predicate.Image) *ImageUpdate {
-	iu.mutation.predicates = append(iu.mutation.predicates, ps...)
+	iu.mutation.Where(ps...)
 	return iu
 }
 
@@ -94,6 +94,9 @@ func (iu *ImageUpdate) Save(ctx context.Context) (int, error) {
 			return affected, err
 		})
 		for i := len(iu.hooks) - 1; i >= 0; i-- {
+			if iu.hooks[i] == nil {
+				return 0, fmt.Errorf("ent: uninitialized hook (forgotten import ent/runtime?)")
+			}
 			mut = iu.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, iu.mutation); err != nil {
@@ -207,8 +210,8 @@ func (iu *ImageUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	if n, err = sqlgraph.UpdateNodes(ctx, iu.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{image.Label}
-		} else if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		} else if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return 0, err
 	}
@@ -218,6 +221,7 @@ func (iu *ImageUpdate) sqlSave(ctx context.Context) (n int, err error) {
 // ImageUpdateOne is the builder for updating a single Image entity.
 type ImageUpdateOne struct {
 	config
+	fields   []string
 	hooks    []Hook
 	mutation *ImageMutation
 }
@@ -269,6 +273,13 @@ func (iuo *ImageUpdateOne) RemoveUserProfilePic(u ...*User) *ImageUpdateOne {
 	return iuo.RemoveUserProfilePicIDs(ids...)
 }
 
+// Select allows selecting one or more fields (columns) of the returned entity.
+// The default is selecting all fields defined in the entity schema.
+func (iuo *ImageUpdateOne) Select(field string, fields ...string) *ImageUpdateOne {
+	iuo.fields = append([]string{field}, fields...)
+	return iuo
+}
+
 // Save executes the query and returns the updated Image entity.
 func (iuo *ImageUpdateOne) Save(ctx context.Context) (*Image, error) {
 	var (
@@ -289,6 +300,9 @@ func (iuo *ImageUpdateOne) Save(ctx context.Context) (*Image, error) {
 			return node, err
 		})
 		for i := len(iuo.hooks) - 1; i >= 0; i-- {
+			if iuo.hooks[i] == nil {
+				return nil, fmt.Errorf("ent: uninitialized hook (forgotten import ent/runtime?)")
+			}
 			mut = iuo.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, iuo.mutation); err != nil {
@@ -336,6 +350,18 @@ func (iuo *ImageUpdateOne) sqlSave(ctx context.Context) (_node *Image, err error
 		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing Image.ID for update")}
 	}
 	_spec.Node.ID.Value = id
+	if fields := iuo.fields; len(fields) > 0 {
+		_spec.Node.Columns = make([]string, 0, len(fields))
+		_spec.Node.Columns = append(_spec.Node.Columns, image.FieldID)
+		for _, f := range fields {
+			if !image.ValidColumn(f) {
+				return nil, &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
+			}
+			if f != image.FieldID {
+				_spec.Node.Columns = append(_spec.Node.Columns, f)
+			}
+		}
+	}
 	if ps := iuo.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
@@ -410,8 +436,8 @@ func (iuo *ImageUpdateOne) sqlSave(ctx context.Context) (_node *Image, err error
 	if err = sqlgraph.UpdateNode(ctx, iuo.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{image.Label}
-		} else if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		} else if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return nil, err
 	}

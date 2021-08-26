@@ -20,9 +20,9 @@ type MessageWithFieldOneUpdate struct {
 	mutation *MessageWithFieldOneMutation
 }
 
-// Where adds a new predicate for the MessageWithFieldOneUpdate builder.
+// Where appends a list predicates to the MessageWithFieldOneUpdate builder.
 func (mwfou *MessageWithFieldOneUpdate) Where(ps ...predicate.MessageWithFieldOne) *MessageWithFieldOneUpdate {
-	mwfou.mutation.predicates = append(mwfou.mutation.predicates, ps...)
+	mwfou.mutation.Where(ps...)
 	return mwfou
 }
 
@@ -64,6 +64,9 @@ func (mwfou *MessageWithFieldOneUpdate) Save(ctx context.Context) (int, error) {
 			return affected, err
 		})
 		for i := len(mwfou.hooks) - 1; i >= 0; i-- {
+			if mwfou.hooks[i] == nil {
+				return 0, fmt.Errorf("ent: uninitialized hook (forgotten import ent/runtime?)")
+			}
 			mut = mwfou.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, mwfou.mutation); err != nil {
@@ -130,8 +133,8 @@ func (mwfou *MessageWithFieldOneUpdate) sqlSave(ctx context.Context) (n int, err
 	if n, err = sqlgraph.UpdateNodes(ctx, mwfou.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{messagewithfieldone.Label}
-		} else if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		} else if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return 0, err
 	}
@@ -141,6 +144,7 @@ func (mwfou *MessageWithFieldOneUpdate) sqlSave(ctx context.Context) (n int, err
 // MessageWithFieldOneUpdateOne is the builder for updating a single MessageWithFieldOne entity.
 type MessageWithFieldOneUpdateOne struct {
 	config
+	fields   []string
 	hooks    []Hook
 	mutation *MessageWithFieldOneMutation
 }
@@ -163,6 +167,13 @@ func (mwfouo *MessageWithFieldOneUpdateOne) Mutation() *MessageWithFieldOneMutat
 	return mwfouo.mutation
 }
 
+// Select allows selecting one or more fields (columns) of the returned entity.
+// The default is selecting all fields defined in the entity schema.
+func (mwfouo *MessageWithFieldOneUpdateOne) Select(field string, fields ...string) *MessageWithFieldOneUpdateOne {
+	mwfouo.fields = append([]string{field}, fields...)
+	return mwfouo
+}
+
 // Save executes the query and returns the updated MessageWithFieldOne entity.
 func (mwfouo *MessageWithFieldOneUpdateOne) Save(ctx context.Context) (*MessageWithFieldOne, error) {
 	var (
@@ -183,6 +194,9 @@ func (mwfouo *MessageWithFieldOneUpdateOne) Save(ctx context.Context) (*MessageW
 			return node, err
 		})
 		for i := len(mwfouo.hooks) - 1; i >= 0; i-- {
+			if mwfouo.hooks[i] == nil {
+				return nil, fmt.Errorf("ent: uninitialized hook (forgotten import ent/runtime?)")
+			}
 			mut = mwfouo.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, mwfouo.mutation); err != nil {
@@ -230,6 +244,18 @@ func (mwfouo *MessageWithFieldOneUpdateOne) sqlSave(ctx context.Context) (_node 
 		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing MessageWithFieldOne.ID for update")}
 	}
 	_spec.Node.ID.Value = id
+	if fields := mwfouo.fields; len(fields) > 0 {
+		_spec.Node.Columns = make([]string, 0, len(fields))
+		_spec.Node.Columns = append(_spec.Node.Columns, messagewithfieldone.FieldID)
+		for _, f := range fields {
+			if !messagewithfieldone.ValidColumn(f) {
+				return nil, &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
+			}
+			if f != messagewithfieldone.FieldID {
+				_spec.Node.Columns = append(_spec.Node.Columns, f)
+			}
+		}
+	}
 	if ps := mwfouo.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
@@ -257,8 +283,8 @@ func (mwfouo *MessageWithFieldOneUpdateOne) sqlSave(ctx context.Context) (_node 
 	if err = sqlgraph.UpdateNode(ctx, mwfouo.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{messagewithfieldone.Label}
-		} else if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		} else if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return nil, err
 	}

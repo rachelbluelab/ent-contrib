@@ -21,9 +21,9 @@ type CategoryUpdate struct {
 	mutation *CategoryMutation
 }
 
-// Where adds a new predicate for the CategoryUpdate builder.
+// Where appends a list predicates to the CategoryUpdate builder.
 func (cu *CategoryUpdate) Where(ps ...predicate.Category) *CategoryUpdate {
-	cu.mutation.predicates = append(cu.mutation.predicates, ps...)
+	cu.mutation.Where(ps...)
 	return cu
 }
 
@@ -100,6 +100,9 @@ func (cu *CategoryUpdate) Save(ctx context.Context) (int, error) {
 			return affected, err
 		})
 		for i := len(cu.hooks) - 1; i >= 0; i-- {
+			if cu.hooks[i] == nil {
+				return 0, fmt.Errorf("ent: uninitialized hook (forgotten import ent/runtime?)")
+			}
 			mut = cu.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, cu.mutation); err != nil {
@@ -220,8 +223,8 @@ func (cu *CategoryUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	if n, err = sqlgraph.UpdateNodes(ctx, cu.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{category.Label}
-		} else if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		} else if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return 0, err
 	}
@@ -231,6 +234,7 @@ func (cu *CategoryUpdate) sqlSave(ctx context.Context) (n int, err error) {
 // CategoryUpdateOne is the builder for updating a single Category entity.
 type CategoryUpdateOne struct {
 	config
+	fields   []string
 	hooks    []Hook
 	mutation *CategoryMutation
 }
@@ -288,6 +292,13 @@ func (cuo *CategoryUpdateOne) RemoveBlogPosts(b ...*BlogPost) *CategoryUpdateOne
 	return cuo.RemoveBlogPostIDs(ids...)
 }
 
+// Select allows selecting one or more fields (columns) of the returned entity.
+// The default is selecting all fields defined in the entity schema.
+func (cuo *CategoryUpdateOne) Select(field string, fields ...string) *CategoryUpdateOne {
+	cuo.fields = append([]string{field}, fields...)
+	return cuo
+}
+
 // Save executes the query and returns the updated Category entity.
 func (cuo *CategoryUpdateOne) Save(ctx context.Context) (*Category, error) {
 	var (
@@ -308,6 +319,9 @@ func (cuo *CategoryUpdateOne) Save(ctx context.Context) (*Category, error) {
 			return node, err
 		})
 		for i := len(cuo.hooks) - 1; i >= 0; i-- {
+			if cuo.hooks[i] == nil {
+				return nil, fmt.Errorf("ent: uninitialized hook (forgotten import ent/runtime?)")
+			}
 			mut = cuo.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, cuo.mutation); err != nil {
@@ -355,6 +369,18 @@ func (cuo *CategoryUpdateOne) sqlSave(ctx context.Context) (_node *Category, err
 		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing Category.ID for update")}
 	}
 	_spec.Node.ID.Value = id
+	if fields := cuo.fields; len(fields) > 0 {
+		_spec.Node.Columns = make([]string, 0, len(fields))
+		_spec.Node.Columns = append(_spec.Node.Columns, category.FieldID)
+		for _, f := range fields {
+			if !category.ValidColumn(f) {
+				return nil, &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
+			}
+			if f != category.FieldID {
+				_spec.Node.Columns = append(_spec.Node.Columns, f)
+			}
+		}
+	}
 	if ps := cuo.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
@@ -436,8 +462,8 @@ func (cuo *CategoryUpdateOne) sqlSave(ctx context.Context) (_node *Category, err
 	if err = sqlgraph.UpdateNode(ctx, cuo.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{category.Label}
-		} else if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		} else if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return nil, err
 	}

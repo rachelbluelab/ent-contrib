@@ -23,6 +23,7 @@ type BlogPostQuery struct {
 	config
 	limit      *int
 	offset     *int
+	unique     *bool
 	order      []OrderFunc
 	fields     []string
 	predicates []predicate.BlogPost
@@ -50,6 +51,13 @@ func (bpq *BlogPostQuery) Limit(limit int) *BlogPostQuery {
 // Offset adds an offset step to the query.
 func (bpq *BlogPostQuery) Offset(offset int) *BlogPostQuery {
 	bpq.offset = &offset
+	return bpq
+}
+
+// Unique configures the query builder to filter duplicate records on query.
+// By default, unique is set to true, and can be disabled using this method.
+func (bpq *BlogPostQuery) Unique(unique bool) *BlogPostQuery {
+	bpq.unique = &unique
 	return bpq
 }
 
@@ -354,8 +362,8 @@ func (bpq *BlogPostQuery) GroupBy(field string, fields ...string) *BlogPostGroup
 //		Select(blogpost.FieldTitle).
 //		Scan(ctx, &v)
 //
-func (bpq *BlogPostQuery) Select(field string, fields ...string) *BlogPostSelect {
-	bpq.fields = append([]string{field}, fields...)
+func (bpq *BlogPostQuery) Select(fields ...string) *BlogPostSelect {
+	bpq.fields = append(bpq.fields, fields...)
 	return &BlogPostSelect{BlogPostQuery: bpq}
 }
 
@@ -415,11 +423,14 @@ func (bpq *BlogPostQuery) sqlAll(ctx context.Context) ([]*BlogPost, error) {
 		ids := make([]int, 0, len(nodes))
 		nodeids := make(map[int][]*BlogPost)
 		for i := range nodes {
-			fk := nodes[i].blog_post_author
-			if fk != nil {
-				ids = append(ids, *fk)
-				nodeids[*fk] = append(nodeids[*fk], nodes[i])
+			if nodes[i].blog_post_author == nil {
+				continue
 			}
+			fk := *nodes[i].blog_post_author
+			if _, ok := nodeids[fk]; !ok {
+				ids = append(ids, fk)
+			}
+			nodeids[fk] = append(nodeids[fk], nodes[i])
 		}
 		query.Where(user.IDIn(ids...))
 		neighbors, err := query.All(ctx)
@@ -458,9 +469,8 @@ func (bpq *BlogPostQuery) sqlAll(ctx context.Context) ([]*BlogPost, error) {
 			Predicate: func(s *sql.Selector) {
 				s.Where(sql.InValues(blogpost.CategoriesPrimaryKey[1], fks...))
 			},
-
 			ScanValues: func() [2]interface{} {
-				return [2]interface{}{&sql.NullInt64{}, &sql.NullInt64{}}
+				return [2]interface{}{new(sql.NullInt64), new(sql.NullInt64)}
 			},
 			Assign: func(out, in interface{}) error {
 				eout, ok := out.(*sql.NullInt64)
@@ -477,7 +487,9 @@ func (bpq *BlogPostQuery) sqlAll(ctx context.Context) ([]*BlogPost, error) {
 				if !ok {
 					return fmt.Errorf("unexpected node id in edges: %v", outValue)
 				}
-				edgeids = append(edgeids, inValue)
+				if _, ok := edges[inValue]; !ok {
+					edgeids = append(edgeids, inValue)
+				}
 				edges[inValue] = append(edges[inValue], node)
 				return nil
 			},
@@ -530,6 +542,9 @@ func (bpq *BlogPostQuery) querySpec() *sqlgraph.QuerySpec {
 		From:   bpq.sql,
 		Unique: true,
 	}
+	if unique := bpq.unique; unique != nil {
+		_spec.Unique = *unique
+	}
 	if fields := bpq.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, blogpost.FieldID)
@@ -555,7 +570,7 @@ func (bpq *BlogPostQuery) querySpec() *sqlgraph.QuerySpec {
 	if ps := bpq.order; len(ps) > 0 {
 		_spec.Order = func(selector *sql.Selector) {
 			for i := range ps {
-				ps[i](selector, blogpost.ValidColumn)
+				ps[i](selector)
 			}
 		}
 	}
@@ -565,16 +580,20 @@ func (bpq *BlogPostQuery) querySpec() *sqlgraph.QuerySpec {
 func (bpq *BlogPostQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(bpq.driver.Dialect())
 	t1 := builder.Table(blogpost.Table)
-	selector := builder.Select(t1.Columns(blogpost.Columns...)...).From(t1)
+	columns := bpq.fields
+	if len(columns) == 0 {
+		columns = blogpost.Columns
+	}
+	selector := builder.Select(t1.Columns(columns...)...).From(t1)
 	if bpq.sql != nil {
 		selector = bpq.sql
-		selector.Select(selector.Columns(blogpost.Columns...)...)
+		selector.Select(selector.Columns(columns...)...)
 	}
 	for _, p := range bpq.predicates {
 		p(selector)
 	}
 	for _, p := range bpq.order {
-		p(selector, blogpost.ValidColumn)
+		p(selector)
 	}
 	if offset := bpq.offset; offset != nil {
 		// limit is mandatory for offset clause. We start
@@ -836,13 +855,24 @@ func (bpgb *BlogPostGroupBy) sqlScan(ctx context.Context, v interface{}) error {
 }
 
 func (bpgb *BlogPostGroupBy) sqlQuery() *sql.Selector {
-	selector := bpgb.sql
-	columns := make([]string, 0, len(bpgb.fields)+len(bpgb.fns))
-	columns = append(columns, bpgb.fields...)
+	selector := bpgb.sql.Select()
+	aggregation := make([]string, 0, len(bpgb.fns))
 	for _, fn := range bpgb.fns {
-		columns = append(columns, fn(selector, blogpost.ValidColumn))
+		aggregation = append(aggregation, fn(selector))
 	}
-	return selector.Select(columns...).GroupBy(bpgb.fields...)
+	// If no columns were selected in a custom aggregation function, the default
+	// selection is the fields used for "group-by", and the aggregation functions.
+	if len(selector.SelectedColumns()) == 0 {
+		columns := make([]string, 0, len(bpgb.fields)+len(bpgb.fns))
+		for _, f := range bpgb.fields {
+			columns = append(columns, selector.C(f))
+		}
+		for _, c := range aggregation {
+			columns = append(columns, c)
+		}
+		selector.Select(columns...)
+	}
+	return selector.GroupBy(selector.Columns(bpgb.fields...)...)
 }
 
 // BlogPostSelect is the builder for selecting fields of BlogPost entities.
@@ -1058,16 +1088,10 @@ func (bps *BlogPostSelect) BoolX(ctx context.Context) bool {
 
 func (bps *BlogPostSelect) sqlScan(ctx context.Context, v interface{}) error {
 	rows := &sql.Rows{}
-	query, args := bps.sqlQuery().Query()
+	query, args := bps.sql.Query()
 	if err := bps.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}
 	defer rows.Close()
 	return sql.ScanSlice(rows, v)
-}
-
-func (bps *BlogPostSelect) sqlQuery() sql.Querier {
-	selector := bps.sql
-	selector.Select(selector.Columns(bps.fields...)...)
-	return selector
 }

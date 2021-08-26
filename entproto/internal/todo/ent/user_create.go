@@ -10,6 +10,7 @@ import (
 
 	"entgo.io/contrib/entproto/internal/todo/ent/attachment"
 	"entgo.io/contrib/entproto/internal/todo/ent/group"
+	"entgo.io/contrib/entproto/internal/todo/ent/schema"
 	"entgo.io/contrib/entproto/internal/todo/ent/user"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
@@ -114,15 +115,29 @@ func (uc *UserCreate) SetNillableOptStr(s *string) *UserCreate {
 }
 
 // SetOptBool sets the "opt_bool" field.
-func (uc *UserCreate) SetOptBool(s string) *UserCreate {
-	uc.mutation.SetOptBool(s)
+func (uc *UserCreate) SetOptBool(b bool) *UserCreate {
+	uc.mutation.SetOptBool(b)
 	return uc
 }
 
 // SetNillableOptBool sets the "opt_bool" field if the given value is not nil.
-func (uc *UserCreate) SetNillableOptBool(s *string) *UserCreate {
-	if s != nil {
-		uc.SetOptBool(*s)
+func (uc *UserCreate) SetNillableOptBool(b *bool) *UserCreate {
+	if b != nil {
+		uc.SetOptBool(*b)
+	}
+	return uc
+}
+
+// SetBigInt sets the "big_int" field.
+func (uc *UserCreate) SetBigInt(si schema.BigInt) *UserCreate {
+	uc.mutation.SetBigInt(si)
+	return uc
+}
+
+// SetNillableBigInt sets the "big_int" field if the given value is not nil.
+func (uc *UserCreate) SetNillableBigInt(si *schema.BigInt) *UserCreate {
+	if si != nil {
+		uc.SetBigInt(*si)
 	}
 	return uc
 }
@@ -165,6 +180,21 @@ func (uc *UserCreate) SetAttachment(a *Attachment) *UserCreate {
 	return uc.SetAttachmentID(a.ID)
 }
 
+// AddReceivedIDs adds the "received" edge to the Attachment entity by IDs.
+func (uc *UserCreate) AddReceivedIDs(ids ...uuid.UUID) *UserCreate {
+	uc.mutation.AddReceivedIDs(ids...)
+	return uc
+}
+
+// AddReceived adds the "received" edges to the Attachment entity.
+func (uc *UserCreate) AddReceived(a ...*Attachment) *UserCreate {
+	ids := make([]uuid.UUID, len(a))
+	for i := range a {
+		ids[i] = a[i].ID
+	}
+	return uc.AddReceivedIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (uc *UserCreate) Mutation() *UserMutation {
 	return uc.mutation
@@ -192,11 +222,17 @@ func (uc *UserCreate) Save(ctx context.Context) (*User, error) {
 				return nil, err
 			}
 			uc.mutation = mutation
-			node, err = uc.sqlSave(ctx)
+			if node, err = uc.sqlSave(ctx); err != nil {
+				return nil, err
+			}
+			mutation.id = &node.ID
 			mutation.done = true
 			return node, err
 		})
 		for i := len(uc.hooks) - 1; i >= 0; i-- {
+			if uc.hooks[i] == nil {
+				return nil, fmt.Errorf("ent: uninitialized hook (forgotten import ent/runtime?)")
+			}
 			mut = uc.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, uc.mutation); err != nil {
@@ -215,6 +251,19 @@ func (uc *UserCreate) SaveX(ctx context.Context) *User {
 	return v
 }
 
+// Exec executes the query.
+func (uc *UserCreate) Exec(ctx context.Context) error {
+	_, err := uc.Save(ctx)
+	return err
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (uc *UserCreate) ExecX(ctx context.Context) {
+	if err := uc.Exec(ctx); err != nil {
+		panic(err)
+	}
+}
+
 // defaults sets the default values of the builder before save.
 func (uc *UserCreate) defaults() {
 	if _, ok := uc.mutation.Banned(); !ok {
@@ -226,36 +275,36 @@ func (uc *UserCreate) defaults() {
 // check runs all checks and user-defined validators on the builder.
 func (uc *UserCreate) check() error {
 	if _, ok := uc.mutation.UserName(); !ok {
-		return &ValidationError{Name: "user_name", err: errors.New("ent: missing required field \"user_name\"")}
+		return &ValidationError{Name: "user_name", err: errors.New(`ent: missing required field "user_name"`)}
 	}
 	if _, ok := uc.mutation.Joined(); !ok {
-		return &ValidationError{Name: "joined", err: errors.New("ent: missing required field \"joined\"")}
+		return &ValidationError{Name: "joined", err: errors.New(`ent: missing required field "joined"`)}
 	}
 	if _, ok := uc.mutation.Points(); !ok {
-		return &ValidationError{Name: "points", err: errors.New("ent: missing required field \"points\"")}
+		return &ValidationError{Name: "points", err: errors.New(`ent: missing required field "points"`)}
 	}
 	if _, ok := uc.mutation.Exp(); !ok {
-		return &ValidationError{Name: "exp", err: errors.New("ent: missing required field \"exp\"")}
+		return &ValidationError{Name: "exp", err: errors.New(`ent: missing required field "exp"`)}
 	}
 	if _, ok := uc.mutation.Status(); !ok {
-		return &ValidationError{Name: "status", err: errors.New("ent: missing required field \"status\"")}
+		return &ValidationError{Name: "status", err: errors.New(`ent: missing required field "status"`)}
 	}
 	if v, ok := uc.mutation.Status(); ok {
 		if err := user.StatusValidator(v); err != nil {
-			return &ValidationError{Name: "status", err: fmt.Errorf("ent: validator failed for field \"status\": %w", err)}
+			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "status": %w`, err)}
 		}
 	}
 	if _, ok := uc.mutation.ExternalID(); !ok {
-		return &ValidationError{Name: "external_id", err: errors.New("ent: missing required field \"external_id\"")}
+		return &ValidationError{Name: "external_id", err: errors.New(`ent: missing required field "external_id"`)}
 	}
 	if _, ok := uc.mutation.CrmID(); !ok {
-		return &ValidationError{Name: "crm_id", err: errors.New("ent: missing required field \"crm_id\"")}
+		return &ValidationError{Name: "crm_id", err: errors.New(`ent: missing required field "crm_id"`)}
 	}
 	if _, ok := uc.mutation.Banned(); !ok {
-		return &ValidationError{Name: "banned", err: errors.New("ent: missing required field \"banned\"")}
+		return &ValidationError{Name: "banned", err: errors.New(`ent: missing required field "banned"`)}
 	}
 	if _, ok := uc.mutation.CustomPb(); !ok {
-		return &ValidationError{Name: "custom_pb", err: errors.New("ent: missing required field \"custom_pb\"")}
+		return &ValidationError{Name: "custom_pb", err: errors.New(`ent: missing required field "custom_pb"`)}
 	}
 	return nil
 }
@@ -263,8 +312,8 @@ func (uc *UserCreate) check() error {
 func (uc *UserCreate) sqlSave(ctx context.Context) (*User, error) {
 	_node, _spec := uc.createSpec()
 	if err := sqlgraph.CreateNode(ctx, uc.driver, _spec); err != nil {
-		if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return nil, err
 	}
@@ -374,11 +423,19 @@ func (uc *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	}
 	if value, ok := uc.mutation.OptBool(); ok {
 		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
+			Type:   field.TypeBool,
 			Value:  value,
 			Column: user.FieldOptBool,
 		})
 		_node.OptBool = value
+	}
+	if value, ok := uc.mutation.BigInt(); ok {
+		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
+			Type:   field.TypeInt,
+			Value:  value,
+			Column: user.FieldBigInt,
+		})
+		_node.BigInt = value
 	}
 	if nodes := uc.mutation.GroupIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -406,6 +463,25 @@ func (uc *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Inverse: false,
 			Table:   user.AttachmentTable,
 			Columns: []string{user.AttachmentColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeUUID,
+					Column: attachment.FieldID,
+				},
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := uc.mutation.ReceivedIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   user.ReceivedTable,
+			Columns: user.ReceivedPrimaryKey,
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: &sqlgraph.FieldSpec{
@@ -451,19 +527,23 @@ func (ucb *UserCreateBulk) Save(ctx context.Context) ([]*User, error) {
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, ucb.builders[i+1].mutation)
 				} else {
+					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
 					// Invoke the actual operation on the latest mutation in the chain.
-					if err = sqlgraph.BatchCreate(ctx, ucb.driver, &sqlgraph.BatchCreateSpec{Nodes: specs}); err != nil {
-						if cerr, ok := isSQLConstraintError(err); ok {
-							err = cerr
+					if err = sqlgraph.BatchCreate(ctx, ucb.driver, spec); err != nil {
+						if sqlgraph.IsConstraintError(err) {
+							err = &ConstraintError{err.Error(), err}
 						}
 					}
 				}
-				mutation.done = true
 				if err != nil {
 					return nil, err
 				}
-				id := specs[i].ID.Value.(int64)
-				nodes[i].ID = int(id)
+				mutation.id = &nodes[i].ID
+				mutation.done = true
+				if specs[i].ID.Value != nil {
+					id := specs[i].ID.Value.(int64)
+					nodes[i].ID = int(id)
+				}
 				return nodes[i], nil
 			})
 			for i := len(builder.hooks) - 1; i >= 0; i-- {
@@ -487,4 +567,17 @@ func (ucb *UserCreateBulk) SaveX(ctx context.Context) []*User {
 		panic(err)
 	}
 	return v
+}
+
+// Exec executes the query.
+func (ucb *UserCreateBulk) Exec(ctx context.Context) error {
+	_, err := ucb.Save(ctx)
+	return err
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (ucb *UserCreateBulk) ExecX(ctx context.Context) {
+	if err := ucb.Exec(ctx); err != nil {
+		panic(err)
+	}
 }

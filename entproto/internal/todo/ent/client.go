@@ -12,6 +12,7 @@ import (
 
 	"entgo.io/contrib/entproto/internal/todo/ent/attachment"
 	"entgo.io/contrib/entproto/internal/todo/ent/group"
+	"entgo.io/contrib/entproto/internal/todo/ent/nilexample"
 	"entgo.io/contrib/entproto/internal/todo/ent/todo"
 	"entgo.io/contrib/entproto/internal/todo/ent/user"
 
@@ -29,6 +30,8 @@ type Client struct {
 	Attachment *AttachmentClient
 	// Group is the client for interacting with the Group builders.
 	Group *GroupClient
+	// NilExample is the client for interacting with the NilExample builders.
+	NilExample *NilExampleClient
 	// Todo is the client for interacting with the Todo builders.
 	Todo *TodoClient
 	// User is the client for interacting with the User builders.
@@ -48,6 +51,7 @@ func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.Attachment = NewAttachmentClient(c.config)
 	c.Group = NewGroupClient(c.config)
+	c.NilExample = NewNilExampleClient(c.config)
 	c.Todo = NewTodoClient(c.config)
 	c.User = NewUserClient(c.config)
 }
@@ -85,6 +89,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		config:     cfg,
 		Attachment: NewAttachmentClient(cfg),
 		Group:      NewGroupClient(cfg),
+		NilExample: NewNilExampleClient(cfg),
 		Todo:       NewTodoClient(cfg),
 		User:       NewUserClient(cfg),
 	}, nil
@@ -107,6 +112,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		config:     cfg,
 		Attachment: NewAttachmentClient(cfg),
 		Group:      NewGroupClient(cfg),
+		NilExample: NewNilExampleClient(cfg),
 		Todo:       NewTodoClient(cfg),
 		User:       NewUserClient(cfg),
 	}, nil
@@ -140,6 +146,7 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	c.Attachment.Use(hooks...)
 	c.Group.Use(hooks...)
+	c.NilExample.Use(hooks...)
 	c.Todo.Use(hooks...)
 	c.User.Use(hooks...)
 }
@@ -210,7 +217,9 @@ func (c *AttachmentClient) DeleteOneID(id uuid.UUID) *AttachmentDeleteOne {
 
 // Query returns a query builder for Attachment.
 func (c *AttachmentClient) Query() *AttachmentQuery {
-	return &AttachmentQuery{config: c.config}
+	return &AttachmentQuery{
+		config: c.config,
+	}
 }
 
 // Get returns a Attachment entity by its id.
@@ -236,6 +245,22 @@ func (c *AttachmentClient) QueryUser(a *Attachment) *UserQuery {
 			sqlgraph.From(attachment.Table, attachment.FieldID, id),
 			sqlgraph.To(user.Table, user.FieldID),
 			sqlgraph.Edge(sqlgraph.O2O, true, attachment.UserTable, attachment.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(a.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryRecipients queries the recipients edge of a Attachment.
+func (c *AttachmentClient) QueryRecipients(a *Attachment) *UserQuery {
+	query := &UserQuery{config: c.config}
+	query.path = func(ctx context.Context) (fromV *sql.Selector, _ error) {
+		id := a.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(attachment.Table, attachment.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, false, attachment.RecipientsTable, attachment.RecipientsPrimaryKey...),
 		)
 		fromV = sqlgraph.Neighbors(a.driver.Dialect(), step)
 		return fromV, nil
@@ -314,7 +339,9 @@ func (c *GroupClient) DeleteOneID(id int) *GroupDeleteOne {
 
 // Query returns a query builder for Group.
 func (c *GroupClient) Query() *GroupQuery {
-	return &GroupQuery{config: c.config}
+	return &GroupQuery{
+		config: c.config,
+	}
 }
 
 // Get returns a Group entity by its id.
@@ -350,6 +377,96 @@ func (c *GroupClient) QueryUsers(gr *Group) *UserQuery {
 // Hooks returns the client hooks.
 func (c *GroupClient) Hooks() []Hook {
 	return c.hooks.Group
+}
+
+// NilExampleClient is a client for the NilExample schema.
+type NilExampleClient struct {
+	config
+}
+
+// NewNilExampleClient returns a client for the NilExample from the given config.
+func NewNilExampleClient(c config) *NilExampleClient {
+	return &NilExampleClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `nilexample.Hooks(f(g(h())))`.
+func (c *NilExampleClient) Use(hooks ...Hook) {
+	c.hooks.NilExample = append(c.hooks.NilExample, hooks...)
+}
+
+// Create returns a create builder for NilExample.
+func (c *NilExampleClient) Create() *NilExampleCreate {
+	mutation := newNilExampleMutation(c.config, OpCreate)
+	return &NilExampleCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of NilExample entities.
+func (c *NilExampleClient) CreateBulk(builders ...*NilExampleCreate) *NilExampleCreateBulk {
+	return &NilExampleCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for NilExample.
+func (c *NilExampleClient) Update() *NilExampleUpdate {
+	mutation := newNilExampleMutation(c.config, OpUpdate)
+	return &NilExampleUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *NilExampleClient) UpdateOne(ne *NilExample) *NilExampleUpdateOne {
+	mutation := newNilExampleMutation(c.config, OpUpdateOne, withNilExample(ne))
+	return &NilExampleUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *NilExampleClient) UpdateOneID(id int) *NilExampleUpdateOne {
+	mutation := newNilExampleMutation(c.config, OpUpdateOne, withNilExampleID(id))
+	return &NilExampleUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for NilExample.
+func (c *NilExampleClient) Delete() *NilExampleDelete {
+	mutation := newNilExampleMutation(c.config, OpDelete)
+	return &NilExampleDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a delete builder for the given entity.
+func (c *NilExampleClient) DeleteOne(ne *NilExample) *NilExampleDeleteOne {
+	return c.DeleteOneID(ne.ID)
+}
+
+// DeleteOneID returns a delete builder for the given id.
+func (c *NilExampleClient) DeleteOneID(id int) *NilExampleDeleteOne {
+	builder := c.Delete().Where(nilexample.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &NilExampleDeleteOne{builder}
+}
+
+// Query returns a query builder for NilExample.
+func (c *NilExampleClient) Query() *NilExampleQuery {
+	return &NilExampleQuery{
+		config: c.config,
+	}
+}
+
+// Get returns a NilExample entity by its id.
+func (c *NilExampleClient) Get(ctx context.Context, id int) (*NilExample, error) {
+	return c.Query().Where(nilexample.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *NilExampleClient) GetX(ctx context.Context, id int) *NilExample {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *NilExampleClient) Hooks() []Hook {
+	return c.hooks.NilExample
 }
 
 // TodoClient is a client for the Todo schema.
@@ -418,7 +535,9 @@ func (c *TodoClient) DeleteOneID(id int) *TodoDeleteOne {
 
 // Query returns a query builder for Todo.
 func (c *TodoClient) Query() *TodoQuery {
-	return &TodoQuery{config: c.config}
+	return &TodoQuery{
+		config: c.config,
+	}
 }
 
 // Get returns a Todo entity by its id.
@@ -522,7 +641,9 @@ func (c *UserClient) DeleteOneID(id int) *UserDeleteOne {
 
 // Query returns a query builder for User.
 func (c *UserClient) Query() *UserQuery {
-	return &UserQuery{config: c.config}
+	return &UserQuery{
+		config: c.config,
+	}
 }
 
 // Get returns a User entity by its id.
@@ -564,6 +685,22 @@ func (c *UserClient) QueryAttachment(u *User) *AttachmentQuery {
 			sqlgraph.From(user.Table, user.FieldID, id),
 			sqlgraph.To(attachment.Table, attachment.FieldID),
 			sqlgraph.Edge(sqlgraph.O2O, false, user.AttachmentTable, user.AttachmentColumn),
+		)
+		fromV = sqlgraph.Neighbors(u.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryReceived queries the received edge of a User.
+func (c *UserClient) QueryReceived(u *User) *AttachmentQuery {
+	query := &AttachmentQuery{config: c.config}
+	query.path = func(ctx context.Context) (fromV *sql.Selector, _ error) {
+		id := u.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(attachment.Table, attachment.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, true, user.ReceivedTable, user.ReceivedPrimaryKey...),
 		)
 		fromV = sqlgraph.Neighbors(u.driver.Dialect(), step)
 		return fromV, nil

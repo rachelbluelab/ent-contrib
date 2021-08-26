@@ -20,6 +20,7 @@ type MessageWithEnumQuery struct {
 	config
 	limit      *int
 	offset     *int
+	unique     *bool
 	order      []OrderFunc
 	fields     []string
 	predicates []predicate.MessageWithEnum
@@ -43,6 +44,13 @@ func (mweq *MessageWithEnumQuery) Limit(limit int) *MessageWithEnumQuery {
 // Offset adds an offset step to the query.
 func (mweq *MessageWithEnumQuery) Offset(offset int) *MessageWithEnumQuery {
 	mweq.offset = &offset
+	return mweq
+}
+
+// Unique configures the query builder to filter duplicate records on query.
+// By default, unique is set to true, and can be disabled using this method.
+func (mweq *MessageWithEnumQuery) Unique(unique bool) *MessageWithEnumQuery {
+	mweq.unique = &unique
 	return mweq
 }
 
@@ -279,8 +287,8 @@ func (mweq *MessageWithEnumQuery) GroupBy(field string, fields ...string) *Messa
 //		Select(messagewithenum.FieldEnumType).
 //		Scan(ctx, &v)
 //
-func (mweq *MessageWithEnumQuery) Select(field string, fields ...string) *MessageWithEnumSelect {
-	mweq.fields = append([]string{field}, fields...)
+func (mweq *MessageWithEnumQuery) Select(fields ...string) *MessageWithEnumSelect {
+	mweq.fields = append(mweq.fields, fields...)
 	return &MessageWithEnumSelect{MessageWithEnumQuery: mweq}
 }
 
@@ -352,6 +360,9 @@ func (mweq *MessageWithEnumQuery) querySpec() *sqlgraph.QuerySpec {
 		From:   mweq.sql,
 		Unique: true,
 	}
+	if unique := mweq.unique; unique != nil {
+		_spec.Unique = *unique
+	}
 	if fields := mweq.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, messagewithenum.FieldID)
@@ -377,7 +388,7 @@ func (mweq *MessageWithEnumQuery) querySpec() *sqlgraph.QuerySpec {
 	if ps := mweq.order; len(ps) > 0 {
 		_spec.Order = func(selector *sql.Selector) {
 			for i := range ps {
-				ps[i](selector, messagewithenum.ValidColumn)
+				ps[i](selector)
 			}
 		}
 	}
@@ -387,16 +398,20 @@ func (mweq *MessageWithEnumQuery) querySpec() *sqlgraph.QuerySpec {
 func (mweq *MessageWithEnumQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(mweq.driver.Dialect())
 	t1 := builder.Table(messagewithenum.Table)
-	selector := builder.Select(t1.Columns(messagewithenum.Columns...)...).From(t1)
+	columns := mweq.fields
+	if len(columns) == 0 {
+		columns = messagewithenum.Columns
+	}
+	selector := builder.Select(t1.Columns(columns...)...).From(t1)
 	if mweq.sql != nil {
 		selector = mweq.sql
-		selector.Select(selector.Columns(messagewithenum.Columns...)...)
+		selector.Select(selector.Columns(columns...)...)
 	}
 	for _, p := range mweq.predicates {
 		p(selector)
 	}
 	for _, p := range mweq.order {
-		p(selector, messagewithenum.ValidColumn)
+		p(selector)
 	}
 	if offset := mweq.offset; offset != nil {
 		// limit is mandatory for offset clause. We start
@@ -658,13 +673,24 @@ func (mwegb *MessageWithEnumGroupBy) sqlScan(ctx context.Context, v interface{})
 }
 
 func (mwegb *MessageWithEnumGroupBy) sqlQuery() *sql.Selector {
-	selector := mwegb.sql
-	columns := make([]string, 0, len(mwegb.fields)+len(mwegb.fns))
-	columns = append(columns, mwegb.fields...)
+	selector := mwegb.sql.Select()
+	aggregation := make([]string, 0, len(mwegb.fns))
 	for _, fn := range mwegb.fns {
-		columns = append(columns, fn(selector, messagewithenum.ValidColumn))
+		aggregation = append(aggregation, fn(selector))
 	}
-	return selector.Select(columns...).GroupBy(mwegb.fields...)
+	// If no columns were selected in a custom aggregation function, the default
+	// selection is the fields used for "group-by", and the aggregation functions.
+	if len(selector.SelectedColumns()) == 0 {
+		columns := make([]string, 0, len(mwegb.fields)+len(mwegb.fns))
+		for _, f := range mwegb.fields {
+			columns = append(columns, selector.C(f))
+		}
+		for _, c := range aggregation {
+			columns = append(columns, c)
+		}
+		selector.Select(columns...)
+	}
+	return selector.GroupBy(selector.Columns(mwegb.fields...)...)
 }
 
 // MessageWithEnumSelect is the builder for selecting fields of MessageWithEnum entities.
@@ -880,16 +906,10 @@ func (mwes *MessageWithEnumSelect) BoolX(ctx context.Context) bool {
 
 func (mwes *MessageWithEnumSelect) sqlScan(ctx context.Context, v interface{}) error {
 	rows := &sql.Rows{}
-	query, args := mwes.sqlQuery().Query()
+	query, args := mwes.sql.Query()
 	if err := mwes.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}
 	defer rows.Close()
 	return sql.ScanSlice(rows, v)
-}
-
-func (mwes *MessageWithEnumSelect) sqlQuery() sql.Querier {
-	selector := mwes.sql
-	selector.Select(selector.Columns(mwes.fields...)...)
-	return selector
 }

@@ -4,19 +4,23 @@ This source code is licensed under the Apache 2.0 license found
 in the LICENSE file in the root directory of this source tree.
 */}}
 
-{{ define "pagination" }}
+{{/* gotype: entgo.io/ent/entc/gen.Graph */}}
+
+{{ define "gql_pagination" }}
 {{ template "header" $ }}
 
 {{- if ne $.Storage.Name "sql" }}
 	{{ fail "pagination requires SQL storage" }}
 {{- end }}
 
-{{- if not (hasTemplate "collection") }}
+{{- if not (hasTemplate "gql_collection") }}
 	{{ fail "pagination requires field collection" }}
 {{- end }}
 
+{{ $gqlNodes := filterNodes $.Nodes }}
+
 import (
-	{{- range $n := $.Nodes }}
+	{{- range $n := $gqlNodes }}
 		"{{ $.Config.Package }}/{{ $n.Package }}"
 	{{- end }}
 )
@@ -225,14 +229,16 @@ const (
 	{{- end }}
 )
 
-{{ range $node := $.Nodes -}}
+{{ range $node := $gqlNodes -}}
 {{ $orderFields := list -}}
-{{- range $f := append $node.Fields $node.ID }}
+{{- range $f := append (filterFields $node.Fields) $node.ID }}
 	{{- if $annotation := $f.Annotations.EntGQL }}
-		{{- if not $f.Type.Comparable }}
-			{{ fail (printf "annotated field %s.%s must be comparable" $node.Name $f.Name) }}
+		{{- if $annotation.OrderField }}
+			{{- if not $f.Type.Comparable }}
+				{{ fail (printf "annotated field %s.%s must be comparable" $node.Name $f.Name) }}
+			{{- end }}
+			{{ $orderFields = append $orderFields $f }}
 		{{- end }}
-		{{ $orderFields = append $orderFields $f }}
 	{{- end }}
 {{- end }}
 

@@ -20,6 +20,7 @@ type InvalidFieldMessageQuery struct {
 	config
 	limit      *int
 	offset     *int
+	unique     *bool
 	order      []OrderFunc
 	fields     []string
 	predicates []predicate.InvalidFieldMessage
@@ -43,6 +44,13 @@ func (ifmq *InvalidFieldMessageQuery) Limit(limit int) *InvalidFieldMessageQuery
 // Offset adds an offset step to the query.
 func (ifmq *InvalidFieldMessageQuery) Offset(offset int) *InvalidFieldMessageQuery {
 	ifmq.offset = &offset
+	return ifmq
+}
+
+// Unique configures the query builder to filter duplicate records on query.
+// By default, unique is set to true, and can be disabled using this method.
+func (ifmq *InvalidFieldMessageQuery) Unique(unique bool) *InvalidFieldMessageQuery {
+	ifmq.unique = &unique
 	return ifmq
 }
 
@@ -279,8 +287,8 @@ func (ifmq *InvalidFieldMessageQuery) GroupBy(field string, fields ...string) *I
 //		Select(invalidfieldmessage.FieldJSON).
 //		Scan(ctx, &v)
 //
-func (ifmq *InvalidFieldMessageQuery) Select(field string, fields ...string) *InvalidFieldMessageSelect {
-	ifmq.fields = append([]string{field}, fields...)
+func (ifmq *InvalidFieldMessageQuery) Select(fields ...string) *InvalidFieldMessageSelect {
+	ifmq.fields = append(ifmq.fields, fields...)
 	return &InvalidFieldMessageSelect{InvalidFieldMessageQuery: ifmq}
 }
 
@@ -352,6 +360,9 @@ func (ifmq *InvalidFieldMessageQuery) querySpec() *sqlgraph.QuerySpec {
 		From:   ifmq.sql,
 		Unique: true,
 	}
+	if unique := ifmq.unique; unique != nil {
+		_spec.Unique = *unique
+	}
 	if fields := ifmq.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, invalidfieldmessage.FieldID)
@@ -377,7 +388,7 @@ func (ifmq *InvalidFieldMessageQuery) querySpec() *sqlgraph.QuerySpec {
 	if ps := ifmq.order; len(ps) > 0 {
 		_spec.Order = func(selector *sql.Selector) {
 			for i := range ps {
-				ps[i](selector, invalidfieldmessage.ValidColumn)
+				ps[i](selector)
 			}
 		}
 	}
@@ -387,16 +398,20 @@ func (ifmq *InvalidFieldMessageQuery) querySpec() *sqlgraph.QuerySpec {
 func (ifmq *InvalidFieldMessageQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(ifmq.driver.Dialect())
 	t1 := builder.Table(invalidfieldmessage.Table)
-	selector := builder.Select(t1.Columns(invalidfieldmessage.Columns...)...).From(t1)
+	columns := ifmq.fields
+	if len(columns) == 0 {
+		columns = invalidfieldmessage.Columns
+	}
+	selector := builder.Select(t1.Columns(columns...)...).From(t1)
 	if ifmq.sql != nil {
 		selector = ifmq.sql
-		selector.Select(selector.Columns(invalidfieldmessage.Columns...)...)
+		selector.Select(selector.Columns(columns...)...)
 	}
 	for _, p := range ifmq.predicates {
 		p(selector)
 	}
 	for _, p := range ifmq.order {
-		p(selector, invalidfieldmessage.ValidColumn)
+		p(selector)
 	}
 	if offset := ifmq.offset; offset != nil {
 		// limit is mandatory for offset clause. We start
@@ -658,13 +673,24 @@ func (ifmgb *InvalidFieldMessageGroupBy) sqlScan(ctx context.Context, v interfac
 }
 
 func (ifmgb *InvalidFieldMessageGroupBy) sqlQuery() *sql.Selector {
-	selector := ifmgb.sql
-	columns := make([]string, 0, len(ifmgb.fields)+len(ifmgb.fns))
-	columns = append(columns, ifmgb.fields...)
+	selector := ifmgb.sql.Select()
+	aggregation := make([]string, 0, len(ifmgb.fns))
 	for _, fn := range ifmgb.fns {
-		columns = append(columns, fn(selector, invalidfieldmessage.ValidColumn))
+		aggregation = append(aggregation, fn(selector))
 	}
-	return selector.Select(columns...).GroupBy(ifmgb.fields...)
+	// If no columns were selected in a custom aggregation function, the default
+	// selection is the fields used for "group-by", and the aggregation functions.
+	if len(selector.SelectedColumns()) == 0 {
+		columns := make([]string, 0, len(ifmgb.fields)+len(ifmgb.fns))
+		for _, f := range ifmgb.fields {
+			columns = append(columns, selector.C(f))
+		}
+		for _, c := range aggregation {
+			columns = append(columns, c)
+		}
+		selector.Select(columns...)
+	}
+	return selector.GroupBy(selector.Columns(ifmgb.fields...)...)
 }
 
 // InvalidFieldMessageSelect is the builder for selecting fields of InvalidFieldMessage entities.
@@ -880,16 +906,10 @@ func (ifms *InvalidFieldMessageSelect) BoolX(ctx context.Context) bool {
 
 func (ifms *InvalidFieldMessageSelect) sqlScan(ctx context.Context, v interface{}) error {
 	rows := &sql.Rows{}
-	query, args := ifms.sqlQuery().Query()
+	query, args := ifms.sql.Query()
 	if err := ifms.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}
 	defer rows.Close()
 	return sql.ScanSlice(rows, v)
-}
-
-func (ifms *InvalidFieldMessageSelect) sqlQuery() sql.Querier {
-	selector := ifms.sql
-	selector.Select(selector.Columns(ifms.fields...)...)
-	return selector
 }

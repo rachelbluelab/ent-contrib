@@ -45,6 +45,21 @@ func (ac *AttachmentCreate) SetUser(u *User) *AttachmentCreate {
 	return ac.SetUserID(u.ID)
 }
 
+// AddRecipientIDs adds the "recipients" edge to the User entity by IDs.
+func (ac *AttachmentCreate) AddRecipientIDs(ids ...int) *AttachmentCreate {
+	ac.mutation.AddRecipientIDs(ids...)
+	return ac
+}
+
+// AddRecipients adds the "recipients" edges to the User entity.
+func (ac *AttachmentCreate) AddRecipients(u ...*User) *AttachmentCreate {
+	ids := make([]int, len(u))
+	for i := range u {
+		ids[i] = u[i].ID
+	}
+	return ac.AddRecipientIDs(ids...)
+}
+
 // Mutation returns the AttachmentMutation object of the builder.
 func (ac *AttachmentCreate) Mutation() *AttachmentMutation {
 	return ac.mutation
@@ -72,11 +87,17 @@ func (ac *AttachmentCreate) Save(ctx context.Context) (*Attachment, error) {
 				return nil, err
 			}
 			ac.mutation = mutation
-			node, err = ac.sqlSave(ctx)
+			if node, err = ac.sqlSave(ctx); err != nil {
+				return nil, err
+			}
+			mutation.id = &node.ID
 			mutation.done = true
 			return node, err
 		})
 		for i := len(ac.hooks) - 1; i >= 0; i-- {
+			if ac.hooks[i] == nil {
+				return nil, fmt.Errorf("ent: uninitialized hook (forgotten import ent/runtime?)")
+			}
 			mut = ac.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, ac.mutation); err != nil {
@@ -95,6 +116,19 @@ func (ac *AttachmentCreate) SaveX(ctx context.Context) *Attachment {
 	return v
 }
 
+// Exec executes the query.
+func (ac *AttachmentCreate) Exec(ctx context.Context) error {
+	_, err := ac.Save(ctx)
+	return err
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (ac *AttachmentCreate) ExecX(ctx context.Context) {
+	if err := ac.Exec(ctx); err != nil {
+		panic(err)
+	}
+}
+
 // defaults sets the default values of the builder before save.
 func (ac *AttachmentCreate) defaults() {
 	if _, ok := ac.mutation.ID(); !ok {
@@ -111,10 +145,13 @@ func (ac *AttachmentCreate) check() error {
 func (ac *AttachmentCreate) sqlSave(ctx context.Context) (*Attachment, error) {
 	_node, _spec := ac.createSpec()
 	if err := sqlgraph.CreateNode(ctx, ac.driver, _spec); err != nil {
-		if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return nil, err
+	}
+	if _spec.ID.Value != nil {
+		_node.ID = _spec.ID.Value.(uuid.UUID)
 	}
 	return _node, nil
 }
@@ -154,6 +191,25 @@ func (ac *AttachmentCreate) createSpec() (*Attachment, *sqlgraph.CreateSpec) {
 		_node.user_attachment = &nodes[0]
 		_spec.Edges = append(_spec.Edges, edge)
 	}
+	if nodes := ac.mutation.RecipientsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   attachment.RecipientsTable,
+			Columns: attachment.RecipientsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeInt,
+					Column: user.FieldID,
+				},
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
 	return _node, _spec
 }
 
@@ -186,17 +242,19 @@ func (acb *AttachmentCreateBulk) Save(ctx context.Context) ([]*Attachment, error
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, acb.builders[i+1].mutation)
 				} else {
+					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
 					// Invoke the actual operation on the latest mutation in the chain.
-					if err = sqlgraph.BatchCreate(ctx, acb.driver, &sqlgraph.BatchCreateSpec{Nodes: specs}); err != nil {
-						if cerr, ok := isSQLConstraintError(err); ok {
-							err = cerr
+					if err = sqlgraph.BatchCreate(ctx, acb.driver, spec); err != nil {
+						if sqlgraph.IsConstraintError(err) {
+							err = &ConstraintError{err.Error(), err}
 						}
 					}
 				}
-				mutation.done = true
 				if err != nil {
 					return nil, err
 				}
+				mutation.id = &nodes[i].ID
+				mutation.done = true
 				return nodes[i], nil
 			})
 			for i := len(builder.hooks) - 1; i >= 0; i-- {
@@ -220,4 +278,17 @@ func (acb *AttachmentCreateBulk) SaveX(ctx context.Context) []*Attachment {
 		panic(err)
 	}
 	return v
+}
+
+// Exec executes the query.
+func (acb *AttachmentCreateBulk) Exec(ctx context.Context) error {
+	_, err := acb.Save(ctx)
+	return err
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (acb *AttachmentCreateBulk) ExecX(ctx context.Context) {
+	if err := acb.Exec(ctx); err != nil {
+		panic(err)
+	}
 }

@@ -21,6 +21,7 @@ type TodoQuery struct {
 	config
 	limit      *int
 	offset     *int
+	unique     *bool
 	order      []OrderFunc
 	fields     []string
 	predicates []predicate.Todo
@@ -47,6 +48,13 @@ func (tq *TodoQuery) Limit(limit int) *TodoQuery {
 // Offset adds an offset step to the query.
 func (tq *TodoQuery) Offset(offset int) *TodoQuery {
 	tq.offset = &offset
+	return tq
+}
+
+// Unique configures the query builder to filter duplicate records on query.
+// By default, unique is set to true, and can be disabled using this method.
+func (tq *TodoQuery) Unique(unique bool) *TodoQuery {
+	tq.unique = &unique
 	return tq
 }
 
@@ -317,8 +325,8 @@ func (tq *TodoQuery) GroupBy(field string, fields ...string) *TodoGroupBy {
 //		Select(todo.FieldTask).
 //		Scan(ctx, &v)
 //
-func (tq *TodoQuery) Select(field string, fields ...string) *TodoSelect {
-	tq.fields = append([]string{field}, fields...)
+func (tq *TodoQuery) Select(fields ...string) *TodoSelect {
+	tq.fields = append(tq.fields, fields...)
 	return &TodoSelect{TodoQuery: tq}
 }
 
@@ -377,11 +385,14 @@ func (tq *TodoQuery) sqlAll(ctx context.Context) ([]*Todo, error) {
 		ids := make([]int, 0, len(nodes))
 		nodeids := make(map[int][]*Todo)
 		for i := range nodes {
-			fk := nodes[i].todo_user
-			if fk != nil {
-				ids = append(ids, *fk)
-				nodeids[*fk] = append(nodeids[*fk], nodes[i])
+			if nodes[i].todo_user == nil {
+				continue
 			}
+			fk := *nodes[i].todo_user
+			if _, ok := nodeids[fk]; !ok {
+				ids = append(ids, fk)
+			}
+			nodeids[fk] = append(nodeids[fk], nodes[i])
 		}
 		query.Where(user.IDIn(ids...))
 		neighbors, err := query.All(ctx)
@@ -428,6 +439,9 @@ func (tq *TodoQuery) querySpec() *sqlgraph.QuerySpec {
 		From:   tq.sql,
 		Unique: true,
 	}
+	if unique := tq.unique; unique != nil {
+		_spec.Unique = *unique
+	}
 	if fields := tq.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, todo.FieldID)
@@ -453,7 +467,7 @@ func (tq *TodoQuery) querySpec() *sqlgraph.QuerySpec {
 	if ps := tq.order; len(ps) > 0 {
 		_spec.Order = func(selector *sql.Selector) {
 			for i := range ps {
-				ps[i](selector, todo.ValidColumn)
+				ps[i](selector)
 			}
 		}
 	}
@@ -463,16 +477,20 @@ func (tq *TodoQuery) querySpec() *sqlgraph.QuerySpec {
 func (tq *TodoQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(tq.driver.Dialect())
 	t1 := builder.Table(todo.Table)
-	selector := builder.Select(t1.Columns(todo.Columns...)...).From(t1)
+	columns := tq.fields
+	if len(columns) == 0 {
+		columns = todo.Columns
+	}
+	selector := builder.Select(t1.Columns(columns...)...).From(t1)
 	if tq.sql != nil {
 		selector = tq.sql
-		selector.Select(selector.Columns(todo.Columns...)...)
+		selector.Select(selector.Columns(columns...)...)
 	}
 	for _, p := range tq.predicates {
 		p(selector)
 	}
 	for _, p := range tq.order {
-		p(selector, todo.ValidColumn)
+		p(selector)
 	}
 	if offset := tq.offset; offset != nil {
 		// limit is mandatory for offset clause. We start
@@ -734,13 +752,24 @@ func (tgb *TodoGroupBy) sqlScan(ctx context.Context, v interface{}) error {
 }
 
 func (tgb *TodoGroupBy) sqlQuery() *sql.Selector {
-	selector := tgb.sql
-	columns := make([]string, 0, len(tgb.fields)+len(tgb.fns))
-	columns = append(columns, tgb.fields...)
+	selector := tgb.sql.Select()
+	aggregation := make([]string, 0, len(tgb.fns))
 	for _, fn := range tgb.fns {
-		columns = append(columns, fn(selector, todo.ValidColumn))
+		aggregation = append(aggregation, fn(selector))
 	}
-	return selector.Select(columns...).GroupBy(tgb.fields...)
+	// If no columns were selected in a custom aggregation function, the default
+	// selection is the fields used for "group-by", and the aggregation functions.
+	if len(selector.SelectedColumns()) == 0 {
+		columns := make([]string, 0, len(tgb.fields)+len(tgb.fns))
+		for _, f := range tgb.fields {
+			columns = append(columns, selector.C(f))
+		}
+		for _, c := range aggregation {
+			columns = append(columns, c)
+		}
+		selector.Select(columns...)
+	}
+	return selector.GroupBy(selector.Columns(tgb.fields...)...)
 }
 
 // TodoSelect is the builder for selecting fields of Todo entities.
@@ -956,16 +985,10 @@ func (ts *TodoSelect) BoolX(ctx context.Context) bool {
 
 func (ts *TodoSelect) sqlScan(ctx context.Context, v interface{}) error {
 	rows := &sql.Rows{}
-	query, args := ts.sqlQuery().Query()
+	query, args := ts.sql.Query()
 	if err := ts.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}
 	defer rows.Close()
 	return sql.ScanSlice(rows, v)
-}
-
-func (ts *TodoSelect) sqlQuery() sql.Querier {
-	selector := ts.sql
-	selector.Select(selector.Columns(ts.fields...)...)
-	return selector
 }

@@ -21,9 +21,9 @@ type InvalidFieldMessageUpdate struct {
 	mutation *InvalidFieldMessageMutation
 }
 
-// Where adds a new predicate for the InvalidFieldMessageUpdate builder.
+// Where appends a list predicates to the InvalidFieldMessageUpdate builder.
 func (ifmu *InvalidFieldMessageUpdate) Where(ps ...predicate.InvalidFieldMessage) *InvalidFieldMessageUpdate {
-	ifmu.mutation.predicates = append(ifmu.mutation.predicates, ps...)
+	ifmu.mutation.Where(ps...)
 	return ifmu
 }
 
@@ -58,6 +58,9 @@ func (ifmu *InvalidFieldMessageUpdate) Save(ctx context.Context) (int, error) {
 			return affected, err
 		})
 		for i := len(ifmu.hooks) - 1; i >= 0; i-- {
+			if ifmu.hooks[i] == nil {
+				return 0, fmt.Errorf("ent: uninitialized hook (forgotten import ent/runtime?)")
+			}
 			mut = ifmu.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, ifmu.mutation); err != nil {
@@ -117,8 +120,8 @@ func (ifmu *InvalidFieldMessageUpdate) sqlSave(ctx context.Context) (n int, err 
 	if n, err = sqlgraph.UpdateNodes(ctx, ifmu.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{invalidfieldmessage.Label}
-		} else if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		} else if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return 0, err
 	}
@@ -128,6 +131,7 @@ func (ifmu *InvalidFieldMessageUpdate) sqlSave(ctx context.Context) (n int, err 
 // InvalidFieldMessageUpdateOne is the builder for updating a single InvalidFieldMessage entity.
 type InvalidFieldMessageUpdateOne struct {
 	config
+	fields   []string
 	hooks    []Hook
 	mutation *InvalidFieldMessageMutation
 }
@@ -141,6 +145,13 @@ func (ifmuo *InvalidFieldMessageUpdateOne) SetJSON(sj *schema.SomeJSON) *Invalid
 // Mutation returns the InvalidFieldMessageMutation object of the builder.
 func (ifmuo *InvalidFieldMessageUpdateOne) Mutation() *InvalidFieldMessageMutation {
 	return ifmuo.mutation
+}
+
+// Select allows selecting one or more fields (columns) of the returned entity.
+// The default is selecting all fields defined in the entity schema.
+func (ifmuo *InvalidFieldMessageUpdateOne) Select(field string, fields ...string) *InvalidFieldMessageUpdateOne {
+	ifmuo.fields = append([]string{field}, fields...)
+	return ifmuo
 }
 
 // Save executes the query and returns the updated InvalidFieldMessage entity.
@@ -163,6 +174,9 @@ func (ifmuo *InvalidFieldMessageUpdateOne) Save(ctx context.Context) (*InvalidFi
 			return node, err
 		})
 		for i := len(ifmuo.hooks) - 1; i >= 0; i-- {
+			if ifmuo.hooks[i] == nil {
+				return nil, fmt.Errorf("ent: uninitialized hook (forgotten import ent/runtime?)")
+			}
 			mut = ifmuo.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, ifmuo.mutation); err != nil {
@@ -210,6 +224,18 @@ func (ifmuo *InvalidFieldMessageUpdateOne) sqlSave(ctx context.Context) (_node *
 		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing InvalidFieldMessage.ID for update")}
 	}
 	_spec.Node.ID.Value = id
+	if fields := ifmuo.fields; len(fields) > 0 {
+		_spec.Node.Columns = make([]string, 0, len(fields))
+		_spec.Node.Columns = append(_spec.Node.Columns, invalidfieldmessage.FieldID)
+		for _, f := range fields {
+			if !invalidfieldmessage.ValidColumn(f) {
+				return nil, &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
+			}
+			if f != invalidfieldmessage.FieldID {
+				_spec.Node.Columns = append(_spec.Node.Columns, f)
+			}
+		}
+	}
 	if ps := ifmuo.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
@@ -230,8 +256,8 @@ func (ifmuo *InvalidFieldMessageUpdateOne) sqlSave(ctx context.Context) (_node *
 	if err = sqlgraph.UpdateNode(ctx, ifmuo.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{invalidfieldmessage.Label}
-		} else if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		} else if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return nil, err
 	}

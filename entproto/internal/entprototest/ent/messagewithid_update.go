@@ -20,9 +20,9 @@ type MessageWithIDUpdate struct {
 	mutation *MessageWithIDMutation
 }
 
-// Where adds a new predicate for the MessageWithIDUpdate builder.
+// Where appends a list predicates to the MessageWithIDUpdate builder.
 func (mwiu *MessageWithIDUpdate) Where(ps ...predicate.MessageWithID) *MessageWithIDUpdate {
-	mwiu.mutation.predicates = append(mwiu.mutation.predicates, ps...)
+	mwiu.mutation.Where(ps...)
 	return mwiu
 }
 
@@ -51,6 +51,9 @@ func (mwiu *MessageWithIDUpdate) Save(ctx context.Context) (int, error) {
 			return affected, err
 		})
 		for i := len(mwiu.hooks) - 1; i >= 0; i-- {
+			if mwiu.hooks[i] == nil {
+				return 0, fmt.Errorf("ent: uninitialized hook (forgotten import ent/runtime?)")
+			}
 			mut = mwiu.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, mwiu.mutation); err != nil {
@@ -103,8 +106,8 @@ func (mwiu *MessageWithIDUpdate) sqlSave(ctx context.Context) (n int, err error)
 	if n, err = sqlgraph.UpdateNodes(ctx, mwiu.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{messagewithid.Label}
-		} else if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		} else if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return 0, err
 	}
@@ -114,6 +117,7 @@ func (mwiu *MessageWithIDUpdate) sqlSave(ctx context.Context) (n int, err error)
 // MessageWithIDUpdateOne is the builder for updating a single MessageWithID entity.
 type MessageWithIDUpdateOne struct {
 	config
+	fields   []string
 	hooks    []Hook
 	mutation *MessageWithIDMutation
 }
@@ -121,6 +125,13 @@ type MessageWithIDUpdateOne struct {
 // Mutation returns the MessageWithIDMutation object of the builder.
 func (mwiuo *MessageWithIDUpdateOne) Mutation() *MessageWithIDMutation {
 	return mwiuo.mutation
+}
+
+// Select allows selecting one or more fields (columns) of the returned entity.
+// The default is selecting all fields defined in the entity schema.
+func (mwiuo *MessageWithIDUpdateOne) Select(field string, fields ...string) *MessageWithIDUpdateOne {
+	mwiuo.fields = append([]string{field}, fields...)
+	return mwiuo
 }
 
 // Save executes the query and returns the updated MessageWithID entity.
@@ -143,6 +154,9 @@ func (mwiuo *MessageWithIDUpdateOne) Save(ctx context.Context) (*MessageWithID, 
 			return node, err
 		})
 		for i := len(mwiuo.hooks) - 1; i >= 0; i-- {
+			if mwiuo.hooks[i] == nil {
+				return nil, fmt.Errorf("ent: uninitialized hook (forgotten import ent/runtime?)")
+			}
 			mut = mwiuo.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, mwiuo.mutation); err != nil {
@@ -190,6 +204,18 @@ func (mwiuo *MessageWithIDUpdateOne) sqlSave(ctx context.Context) (_node *Messag
 		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing MessageWithID.ID for update")}
 	}
 	_spec.Node.ID.Value = id
+	if fields := mwiuo.fields; len(fields) > 0 {
+		_spec.Node.Columns = make([]string, 0, len(fields))
+		_spec.Node.Columns = append(_spec.Node.Columns, messagewithid.FieldID)
+		for _, f := range fields {
+			if !messagewithid.ValidColumn(f) {
+				return nil, &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
+			}
+			if f != messagewithid.FieldID {
+				_spec.Node.Columns = append(_spec.Node.Columns, f)
+			}
+		}
+	}
 	if ps := mwiuo.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
@@ -203,8 +229,8 @@ func (mwiuo *MessageWithIDUpdateOne) sqlSave(ctx context.Context) (_node *Messag
 	if err = sqlgraph.UpdateNode(ctx, mwiuo.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{messagewithid.Label}
-		} else if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		} else if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return nil, err
 	}

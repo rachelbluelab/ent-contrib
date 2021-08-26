@@ -34,10 +34,21 @@ var (
 	}
 	// GroupsTable holds the schema information for the "groups" table.
 	GroupsTable = &schema.Table{
-		Name:        "groups",
-		Columns:     GroupsColumns,
-		PrimaryKey:  []*schema.Column{GroupsColumns[0]},
-		ForeignKeys: []*schema.ForeignKey{},
+		Name:       "groups",
+		Columns:    GroupsColumns,
+		PrimaryKey: []*schema.Column{GroupsColumns[0]},
+	}
+	// NilExamplesColumns holds the columns for the "nil_examples" table.
+	NilExamplesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "str_nil", Type: field.TypeString, Nullable: true},
+		{Name: "time_nil", Type: field.TypeTime, Nullable: true},
+	}
+	// NilExamplesTable holds the schema information for the "nil_examples" table.
+	NilExamplesTable = &schema.Table{
+		Name:       "nil_examples",
+		Columns:    NilExamplesColumns,
+		PrimaryKey: []*schema.Column{NilExamplesColumns[0]},
 	}
 	// TodosColumns holds the columns for the "todos" table.
 	TodosColumns = []*schema.Column{
@@ -74,7 +85,8 @@ var (
 		{Name: "custom_pb", Type: field.TypeUint8},
 		{Name: "opt_num", Type: field.TypeInt, Nullable: true},
 		{Name: "opt_str", Type: field.TypeString, Nullable: true},
-		{Name: "opt_bool", Type: field.TypeString, Nullable: true},
+		{Name: "opt_bool", Type: field.TypeBool, Nullable: true},
+		{Name: "big_int", Type: field.TypeInt, Nullable: true},
 		{Name: "user_group", Type: field.TypeInt, Nullable: true},
 	}
 	// UsersTable holds the schema information for the "users" table.
@@ -85,9 +97,34 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "users_groups_group",
-				Columns:    []*schema.Column{UsersColumns[13]},
+				Columns:    []*schema.Column{UsersColumns[14]},
 				RefColumns: []*schema.Column{GroupsColumns[0]},
 				OnDelete:   schema.SetNull,
+			},
+		},
+	}
+	// AttachmentRecipientsColumns holds the columns for the "attachment_recipients" table.
+	AttachmentRecipientsColumns = []*schema.Column{
+		{Name: "attachment_id", Type: field.TypeUUID},
+		{Name: "user_id", Type: field.TypeInt},
+	}
+	// AttachmentRecipientsTable holds the schema information for the "attachment_recipients" table.
+	AttachmentRecipientsTable = &schema.Table{
+		Name:       "attachment_recipients",
+		Columns:    AttachmentRecipientsColumns,
+		PrimaryKey: []*schema.Column{AttachmentRecipientsColumns[0], AttachmentRecipientsColumns[1]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "attachment_recipients_attachment_id",
+				Columns:    []*schema.Column{AttachmentRecipientsColumns[0]},
+				RefColumns: []*schema.Column{AttachmentsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "attachment_recipients_user_id",
+				Columns:    []*schema.Column{AttachmentRecipientsColumns[1]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
 			},
 		},
 	}
@@ -95,8 +132,10 @@ var (
 	Tables = []*schema.Table{
 		AttachmentsTable,
 		GroupsTable,
+		NilExamplesTable,
 		TodosTable,
 		UsersTable,
+		AttachmentRecipientsTable,
 	}
 )
 
@@ -104,4 +143,6 @@ func init() {
 	AttachmentsTable.ForeignKeys[0].RefTable = UsersTable
 	TodosTable.ForeignKeys[0].RefTable = UsersTable
 	UsersTable.ForeignKeys[0].RefTable = GroupsTable
+	AttachmentRecipientsTable.ForeignKeys[0].RefTable = AttachmentsTable
+	AttachmentRecipientsTable.ForeignKeys[1].RefTable = UsersTable
 }

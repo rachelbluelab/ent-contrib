@@ -20,6 +20,7 @@ type MessageWithOptionalsQuery struct {
 	config
 	limit      *int
 	offset     *int
+	unique     *bool
 	order      []OrderFunc
 	fields     []string
 	predicates []predicate.MessageWithOptionals
@@ -43,6 +44,13 @@ func (mwoq *MessageWithOptionalsQuery) Limit(limit int) *MessageWithOptionalsQue
 // Offset adds an offset step to the query.
 func (mwoq *MessageWithOptionalsQuery) Offset(offset int) *MessageWithOptionalsQuery {
 	mwoq.offset = &offset
+	return mwoq
+}
+
+// Unique configures the query builder to filter duplicate records on query.
+// By default, unique is set to true, and can be disabled using this method.
+func (mwoq *MessageWithOptionalsQuery) Unique(unique bool) *MessageWithOptionalsQuery {
+	mwoq.unique = &unique
 	return mwoq
 }
 
@@ -279,8 +287,8 @@ func (mwoq *MessageWithOptionalsQuery) GroupBy(field string, fields ...string) *
 //		Select(messagewithoptionals.FieldStrOptional).
 //		Scan(ctx, &v)
 //
-func (mwoq *MessageWithOptionalsQuery) Select(field string, fields ...string) *MessageWithOptionalsSelect {
-	mwoq.fields = append([]string{field}, fields...)
+func (mwoq *MessageWithOptionalsQuery) Select(fields ...string) *MessageWithOptionalsSelect {
+	mwoq.fields = append(mwoq.fields, fields...)
 	return &MessageWithOptionalsSelect{MessageWithOptionalsQuery: mwoq}
 }
 
@@ -352,6 +360,9 @@ func (mwoq *MessageWithOptionalsQuery) querySpec() *sqlgraph.QuerySpec {
 		From:   mwoq.sql,
 		Unique: true,
 	}
+	if unique := mwoq.unique; unique != nil {
+		_spec.Unique = *unique
+	}
 	if fields := mwoq.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, messagewithoptionals.FieldID)
@@ -377,7 +388,7 @@ func (mwoq *MessageWithOptionalsQuery) querySpec() *sqlgraph.QuerySpec {
 	if ps := mwoq.order; len(ps) > 0 {
 		_spec.Order = func(selector *sql.Selector) {
 			for i := range ps {
-				ps[i](selector, messagewithoptionals.ValidColumn)
+				ps[i](selector)
 			}
 		}
 	}
@@ -387,16 +398,20 @@ func (mwoq *MessageWithOptionalsQuery) querySpec() *sqlgraph.QuerySpec {
 func (mwoq *MessageWithOptionalsQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(mwoq.driver.Dialect())
 	t1 := builder.Table(messagewithoptionals.Table)
-	selector := builder.Select(t1.Columns(messagewithoptionals.Columns...)...).From(t1)
+	columns := mwoq.fields
+	if len(columns) == 0 {
+		columns = messagewithoptionals.Columns
+	}
+	selector := builder.Select(t1.Columns(columns...)...).From(t1)
 	if mwoq.sql != nil {
 		selector = mwoq.sql
-		selector.Select(selector.Columns(messagewithoptionals.Columns...)...)
+		selector.Select(selector.Columns(columns...)...)
 	}
 	for _, p := range mwoq.predicates {
 		p(selector)
 	}
 	for _, p := range mwoq.order {
-		p(selector, messagewithoptionals.ValidColumn)
+		p(selector)
 	}
 	if offset := mwoq.offset; offset != nil {
 		// limit is mandatory for offset clause. We start
@@ -658,13 +673,24 @@ func (mwogb *MessageWithOptionalsGroupBy) sqlScan(ctx context.Context, v interfa
 }
 
 func (mwogb *MessageWithOptionalsGroupBy) sqlQuery() *sql.Selector {
-	selector := mwogb.sql
-	columns := make([]string, 0, len(mwogb.fields)+len(mwogb.fns))
-	columns = append(columns, mwogb.fields...)
+	selector := mwogb.sql.Select()
+	aggregation := make([]string, 0, len(mwogb.fns))
 	for _, fn := range mwogb.fns {
-		columns = append(columns, fn(selector, messagewithoptionals.ValidColumn))
+		aggregation = append(aggregation, fn(selector))
 	}
-	return selector.Select(columns...).GroupBy(mwogb.fields...)
+	// If no columns were selected in a custom aggregation function, the default
+	// selection is the fields used for "group-by", and the aggregation functions.
+	if len(selector.SelectedColumns()) == 0 {
+		columns := make([]string, 0, len(mwogb.fields)+len(mwogb.fns))
+		for _, f := range mwogb.fields {
+			columns = append(columns, selector.C(f))
+		}
+		for _, c := range aggregation {
+			columns = append(columns, c)
+		}
+		selector.Select(columns...)
+	}
+	return selector.GroupBy(selector.Columns(mwogb.fields...)...)
 }
 
 // MessageWithOptionalsSelect is the builder for selecting fields of MessageWithOptionals entities.
@@ -880,16 +906,10 @@ func (mwos *MessageWithOptionalsSelect) BoolX(ctx context.Context) bool {
 
 func (mwos *MessageWithOptionalsSelect) sqlScan(ctx context.Context, v interface{}) error {
 	rows := &sql.Rows{}
-	query, args := mwos.sqlQuery().Query()
+	query, args := mwos.sql.Query()
 	if err := mwos.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}
 	defer rows.Close()
 	return sql.ScanSlice(rows, v)
-}
-
-func (mwos *MessageWithOptionalsSelect) sqlQuery() sql.Querier {
-	selector := mwos.sql
-	selector.Select(selector.Columns(mwos.fields...)...)
-	return selector
 }

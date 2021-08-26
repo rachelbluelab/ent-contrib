@@ -21,9 +21,9 @@ type AttachmentUpdate struct {
 	mutation *AttachmentMutation
 }
 
-// Where adds a new predicate for the AttachmentUpdate builder.
+// Where appends a list predicates to the AttachmentUpdate builder.
 func (au *AttachmentUpdate) Where(ps ...predicate.Attachment) *AttachmentUpdate {
-	au.mutation.predicates = append(au.mutation.predicates, ps...)
+	au.mutation.Where(ps...)
 	return au
 }
 
@@ -46,6 +46,21 @@ func (au *AttachmentUpdate) SetUser(u *User) *AttachmentUpdate {
 	return au.SetUserID(u.ID)
 }
 
+// AddRecipientIDs adds the "recipients" edge to the User entity by IDs.
+func (au *AttachmentUpdate) AddRecipientIDs(ids ...int) *AttachmentUpdate {
+	au.mutation.AddRecipientIDs(ids...)
+	return au
+}
+
+// AddRecipients adds the "recipients" edges to the User entity.
+func (au *AttachmentUpdate) AddRecipients(u ...*User) *AttachmentUpdate {
+	ids := make([]int, len(u))
+	for i := range u {
+		ids[i] = u[i].ID
+	}
+	return au.AddRecipientIDs(ids...)
+}
+
 // Mutation returns the AttachmentMutation object of the builder.
 func (au *AttachmentUpdate) Mutation() *AttachmentMutation {
 	return au.mutation
@@ -55,6 +70,27 @@ func (au *AttachmentUpdate) Mutation() *AttachmentMutation {
 func (au *AttachmentUpdate) ClearUser() *AttachmentUpdate {
 	au.mutation.ClearUser()
 	return au
+}
+
+// ClearRecipients clears all "recipients" edges to the User entity.
+func (au *AttachmentUpdate) ClearRecipients() *AttachmentUpdate {
+	au.mutation.ClearRecipients()
+	return au
+}
+
+// RemoveRecipientIDs removes the "recipients" edge to User entities by IDs.
+func (au *AttachmentUpdate) RemoveRecipientIDs(ids ...int) *AttachmentUpdate {
+	au.mutation.RemoveRecipientIDs(ids...)
+	return au
+}
+
+// RemoveRecipients removes "recipients" edges to User entities.
+func (au *AttachmentUpdate) RemoveRecipients(u ...*User) *AttachmentUpdate {
+	ids := make([]int, len(u))
+	for i := range u {
+		ids[i] = u[i].ID
+	}
+	return au.RemoveRecipientIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -77,6 +113,9 @@ func (au *AttachmentUpdate) Save(ctx context.Context) (int, error) {
 			return affected, err
 		})
 		for i := len(au.hooks) - 1; i >= 0; i-- {
+			if au.hooks[i] == nil {
+				return 0, fmt.Errorf("ent: uninitialized hook (forgotten import ent/runtime?)")
+			}
 			mut = au.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, au.mutation); err != nil {
@@ -161,11 +200,65 @@ func (au *AttachmentUpdate) sqlSave(ctx context.Context) (n int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if au.mutation.RecipientsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   attachment.RecipientsTable,
+			Columns: attachment.RecipientsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeInt,
+					Column: user.FieldID,
+				},
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := au.mutation.RemovedRecipientsIDs(); len(nodes) > 0 && !au.mutation.RecipientsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   attachment.RecipientsTable,
+			Columns: attachment.RecipientsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeInt,
+					Column: user.FieldID,
+				},
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := au.mutation.RecipientsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   attachment.RecipientsTable,
+			Columns: attachment.RecipientsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeInt,
+					Column: user.FieldID,
+				},
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if n, err = sqlgraph.UpdateNodes(ctx, au.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{attachment.Label}
-		} else if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		} else if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return 0, err
 	}
@@ -175,6 +268,7 @@ func (au *AttachmentUpdate) sqlSave(ctx context.Context) (n int, err error) {
 // AttachmentUpdateOne is the builder for updating a single Attachment entity.
 type AttachmentUpdateOne struct {
 	config
+	fields   []string
 	hooks    []Hook
 	mutation *AttachmentMutation
 }
@@ -198,6 +292,21 @@ func (auo *AttachmentUpdateOne) SetUser(u *User) *AttachmentUpdateOne {
 	return auo.SetUserID(u.ID)
 }
 
+// AddRecipientIDs adds the "recipients" edge to the User entity by IDs.
+func (auo *AttachmentUpdateOne) AddRecipientIDs(ids ...int) *AttachmentUpdateOne {
+	auo.mutation.AddRecipientIDs(ids...)
+	return auo
+}
+
+// AddRecipients adds the "recipients" edges to the User entity.
+func (auo *AttachmentUpdateOne) AddRecipients(u ...*User) *AttachmentUpdateOne {
+	ids := make([]int, len(u))
+	for i := range u {
+		ids[i] = u[i].ID
+	}
+	return auo.AddRecipientIDs(ids...)
+}
+
 // Mutation returns the AttachmentMutation object of the builder.
 func (auo *AttachmentUpdateOne) Mutation() *AttachmentMutation {
 	return auo.mutation
@@ -206,6 +315,34 @@ func (auo *AttachmentUpdateOne) Mutation() *AttachmentMutation {
 // ClearUser clears the "user" edge to the User entity.
 func (auo *AttachmentUpdateOne) ClearUser() *AttachmentUpdateOne {
 	auo.mutation.ClearUser()
+	return auo
+}
+
+// ClearRecipients clears all "recipients" edges to the User entity.
+func (auo *AttachmentUpdateOne) ClearRecipients() *AttachmentUpdateOne {
+	auo.mutation.ClearRecipients()
+	return auo
+}
+
+// RemoveRecipientIDs removes the "recipients" edge to User entities by IDs.
+func (auo *AttachmentUpdateOne) RemoveRecipientIDs(ids ...int) *AttachmentUpdateOne {
+	auo.mutation.RemoveRecipientIDs(ids...)
+	return auo
+}
+
+// RemoveRecipients removes "recipients" edges to User entities.
+func (auo *AttachmentUpdateOne) RemoveRecipients(u ...*User) *AttachmentUpdateOne {
+	ids := make([]int, len(u))
+	for i := range u {
+		ids[i] = u[i].ID
+	}
+	return auo.RemoveRecipientIDs(ids...)
+}
+
+// Select allows selecting one or more fields (columns) of the returned entity.
+// The default is selecting all fields defined in the entity schema.
+func (auo *AttachmentUpdateOne) Select(field string, fields ...string) *AttachmentUpdateOne {
+	auo.fields = append([]string{field}, fields...)
 	return auo
 }
 
@@ -229,6 +366,9 @@ func (auo *AttachmentUpdateOne) Save(ctx context.Context) (*Attachment, error) {
 			return node, err
 		})
 		for i := len(auo.hooks) - 1; i >= 0; i-- {
+			if auo.hooks[i] == nil {
+				return nil, fmt.Errorf("ent: uninitialized hook (forgotten import ent/runtime?)")
+			}
 			mut = auo.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, auo.mutation); err != nil {
@@ -276,6 +416,18 @@ func (auo *AttachmentUpdateOne) sqlSave(ctx context.Context) (_node *Attachment,
 		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing Attachment.ID for update")}
 	}
 	_spec.Node.ID.Value = id
+	if fields := auo.fields; len(fields) > 0 {
+		_spec.Node.Columns = make([]string, 0, len(fields))
+		_spec.Node.Columns = append(_spec.Node.Columns, attachment.FieldID)
+		for _, f := range fields {
+			if !attachment.ValidColumn(f) {
+				return nil, &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
+			}
+			if f != attachment.FieldID {
+				_spec.Node.Columns = append(_spec.Node.Columns, f)
+			}
+		}
+	}
 	if ps := auo.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
@@ -318,14 +470,68 @@ func (auo *AttachmentUpdateOne) sqlSave(ctx context.Context) (_node *Attachment,
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if auo.mutation.RecipientsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   attachment.RecipientsTable,
+			Columns: attachment.RecipientsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeInt,
+					Column: user.FieldID,
+				},
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := auo.mutation.RemovedRecipientsIDs(); len(nodes) > 0 && !auo.mutation.RecipientsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   attachment.RecipientsTable,
+			Columns: attachment.RecipientsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeInt,
+					Column: user.FieldID,
+				},
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := auo.mutation.RecipientsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   attachment.RecipientsTable,
+			Columns: attachment.RecipientsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeInt,
+					Column: user.FieldID,
+				},
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	_node = &Attachment{config: auo.config}
 	_spec.Assign = _node.assignValues
 	_spec.ScanValues = _node.scanValues
 	if err = sqlgraph.UpdateNode(ctx, auo.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{attachment.Label}
-		} else if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		} else if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return nil, err
 	}

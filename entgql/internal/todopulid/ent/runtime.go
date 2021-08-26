@@ -19,15 +19,32 @@ package ent
 import (
 	"time"
 
+	"entgo.io/contrib/entgql/internal/todopulid/ent/category"
 	"entgo.io/contrib/entgql/internal/todopulid/ent/schema"
 	"entgo.io/contrib/entgql/internal/todopulid/ent/schema/pulid"
 	"entgo.io/contrib/entgql/internal/todopulid/ent/todo"
+	"entgo.io/contrib/entgql/internal/todopulid/ent/verysecret"
 )
 
 // The init function reads all schema descriptors with runtime code
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	categoryMixin := schema.Category{}.Mixin()
+	categoryMixinFields0 := categoryMixin[0].Fields()
+	_ = categoryMixinFields0
+	categoryMixinFields1 := categoryMixin[1].Fields()
+	_ = categoryMixinFields1
+	categoryFields := schema.Category{}.Fields()
+	_ = categoryFields
+	// categoryDescText is the schema descriptor for text field.
+	categoryDescText := categoryMixinFields1[0].Descriptor()
+	// category.TextValidator is a validator for the "text" field. It is called by the builders before save.
+	category.TextValidator = categoryDescText.Validators[0].(func(string) error)
+	// categoryDescID is the schema descriptor for id field.
+	categoryDescID := categoryMixinFields0[0].Descriptor()
+	// category.DefaultID holds the default value on creation for the id field.
+	category.DefaultID = categoryDescID.Default.(func() pulid.ID)
 	todoMixin := schema.Todo{}.Mixin()
 	todoMixinFields0 := todoMixin[0].Fields()
 	_ = todoMixinFields0
@@ -51,4 +68,13 @@ func init() {
 	todoDescID := todoMixinFields0[0].Descriptor()
 	// todo.DefaultID holds the default value on creation for the id field.
 	todo.DefaultID = todoDescID.Default.(func() pulid.ID)
+	verysecretMixin := schema.VerySecret{}.Mixin()
+	verysecretMixinFields0 := verysecretMixin[0].Fields()
+	_ = verysecretMixinFields0
+	verysecretFields := schema.VerySecret{}.Fields()
+	_ = verysecretFields
+	// verysecretDescID is the schema descriptor for id field.
+	verysecretDescID := verysecretMixinFields0[0].Descriptor()
+	// verysecret.DefaultID holds the default value on creation for the id field.
+	verysecret.DefaultID = verysecretDescID.Default.(func() pulid.ID)
 }

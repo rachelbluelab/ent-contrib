@@ -9,6 +9,7 @@ import (
 
 	"entgo.io/contrib/entproto/internal/todo/ent/attachment"
 	"entgo.io/contrib/entproto/internal/todo/ent/group"
+	"entgo.io/contrib/entproto/internal/todo/ent/schema"
 	"entgo.io/contrib/entproto/internal/todo/ent/user"
 	"entgo.io/ent/dialect/sql"
 	"github.com/google/uuid"
@@ -42,7 +43,9 @@ type User struct {
 	// OptStr holds the value of the "opt_str" field.
 	OptStr string `json:"opt_str,omitempty"`
 	// OptBool holds the value of the "opt_bool" field.
-	OptBool string `json:"opt_bool,omitempty"`
+	OptBool bool `json:"opt_bool,omitempty"`
+	// BigInt holds the value of the "big_int" field.
+	BigInt schema.BigInt `json:"big_int,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the UserQuery when eager-loading is set.
 	Edges      UserEdges `json:"edges"`
@@ -55,9 +58,11 @@ type UserEdges struct {
 	Group *Group `json:"group,omitempty"`
 	// Attachment holds the value of the attachment edge.
 	Attachment *Attachment `json:"attachment,omitempty"`
+	// Received holds the value of the received edge.
+	Received []*Attachment `json:"received,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [2]bool
+	loadedTypes [3]bool
 }
 
 // GroupOrErr returns the Group value or an error if the edge
@@ -88,23 +93,34 @@ func (e UserEdges) AttachmentOrErr() (*Attachment, error) {
 	return nil, &NotLoadedError{edge: "attachment"}
 }
 
+// ReceivedOrErr returns the Received value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) ReceivedOrErr() ([]*Attachment, error) {
+	if e.loadedTypes[2] {
+		return e.Received, nil
+	}
+	return nil, &NotLoadedError{edge: "received"}
+}
+
 // scanValues returns the types for scanning values from sql.Rows.
 func (*User) scanValues(columns []string) ([]interface{}, error) {
 	values := make([]interface{}, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case user.FieldBanned:
-			values[i] = &sql.NullBool{}
+		case user.FieldBigInt:
+			values[i] = new(schema.BigInt)
+		case user.FieldBanned, user.FieldOptBool:
+			values[i] = new(sql.NullBool)
 		case user.FieldID, user.FieldPoints, user.FieldExp, user.FieldExternalID, user.FieldCustomPb, user.FieldOptNum:
-			values[i] = &sql.NullInt64{}
-		case user.FieldUserName, user.FieldStatus, user.FieldOptStr, user.FieldOptBool:
-			values[i] = &sql.NullString{}
+			values[i] = new(sql.NullInt64)
+		case user.FieldUserName, user.FieldStatus, user.FieldOptStr:
+			values[i] = new(sql.NullString)
 		case user.FieldJoined:
-			values[i] = &sql.NullTime{}
+			values[i] = new(sql.NullTime)
 		case user.FieldCrmID:
-			values[i] = &uuid.UUID{}
+			values[i] = new(uuid.UUID)
 		case user.ForeignKeys[0]: // user_group
-			values[i] = &sql.NullInt64{}
+			values[i] = new(sql.NullInt64)
 		default:
 			return nil, fmt.Errorf("unexpected column %q for type User", columns[i])
 		}
@@ -193,10 +209,16 @@ func (u *User) assignValues(columns []string, values []interface{}) error {
 				u.OptStr = value.String
 			}
 		case user.FieldOptBool:
-			if value, ok := values[i].(*sql.NullString); !ok {
+			if value, ok := values[i].(*sql.NullBool); !ok {
 				return fmt.Errorf("unexpected type %T for field opt_bool", values[i])
 			} else if value.Valid {
-				u.OptBool = value.String
+				u.OptBool = value.Bool
+			}
+		case user.FieldBigInt:
+			if value, ok := values[i].(*schema.BigInt); !ok {
+				return fmt.Errorf("unexpected type %T for field big_int", values[i])
+			} else if value != nil {
+				u.BigInt = *value
 			}
 		case user.ForeignKeys[0]:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -218,6 +240,11 @@ func (u *User) QueryGroup() *GroupQuery {
 // QueryAttachment queries the "attachment" edge of the User entity.
 func (u *User) QueryAttachment() *AttachmentQuery {
 	return (&UserClient{config: u.config}).QueryAttachment(u)
+}
+
+// QueryReceived queries the "received" edge of the User entity.
+func (u *User) QueryReceived() *AttachmentQuery {
+	return (&UserClient{config: u.config}).QueryReceived(u)
 }
 
 // Update returns a builder for updating this User.
@@ -266,7 +293,9 @@ func (u *User) String() string {
 	builder.WriteString(", opt_str=")
 	builder.WriteString(u.OptStr)
 	builder.WriteString(", opt_bool=")
-	builder.WriteString(u.OptBool)
+	builder.WriteString(fmt.Sprintf("%v", u.OptBool))
+	builder.WriteString(", big_int=")
+	builder.WriteString(fmt.Sprintf("%v", u.BigInt))
 	builder.WriteByte(')')
 	return builder.String()
 }

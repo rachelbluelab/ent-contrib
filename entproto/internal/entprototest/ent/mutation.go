@@ -146,8 +146,8 @@ func (m BlogPostMutation) Tx() (*Tx, error) {
 	return tx, nil
 }
 
-// ID returns the ID value in the mutation. Note that the ID
-// is only available if it was provided to the builder.
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
 func (m *BlogPostMutation) ID() (id int, exists bool) {
 	if m.id == nil {
 		return
@@ -293,7 +293,7 @@ func (m *BlogPostMutation) ClearAuthor() {
 	m.clearedauthor = true
 }
 
-// AuthorCleared returns if the "author" edge to the User entity was cleared.
+// AuthorCleared reports if the "author" edge to the User entity was cleared.
 func (m *BlogPostMutation) AuthorCleared() bool {
 	return m.clearedauthor
 }
@@ -337,7 +337,7 @@ func (m *BlogPostMutation) ClearCategories() {
 	m.clearedcategories = true
 }
 
-// CategoriesCleared returns if the "categories" edge to the Category entity was cleared.
+// CategoriesCleared reports if the "categories" edge to the Category entity was cleared.
 func (m *BlogPostMutation) CategoriesCleared() bool {
 	return m.clearedcategories
 }
@@ -348,6 +348,7 @@ func (m *BlogPostMutation) RemoveCategoryIDs(ids ...int) {
 		m.removedcategories = make(map[int]struct{})
 	}
 	for i := range ids {
+		delete(m.categories, ids[i])
 		m.removedcategories[ids[i]] = struct{}{}
 	}
 }
@@ -373,6 +374,11 @@ func (m *BlogPostMutation) ResetCategories() {
 	m.categories = nil
 	m.clearedcategories = false
 	m.removedcategories = nil
+}
+
+// Where appends a list predicates to the BlogPostMutation builder.
+func (m *BlogPostMutation) Where(ps ...predicate.BlogPost) {
+	m.predicates = append(m.predicates, ps...)
 }
 
 // Op returns the operation name.
@@ -724,8 +730,8 @@ func (m CategoryMutation) Tx() (*Tx, error) {
 	return tx, nil
 }
 
-// ID returns the ID value in the mutation. Note that the ID
-// is only available if it was provided to the builder.
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
 func (m *CategoryMutation) ID() (id int, exists bool) {
 	if m.id == nil {
 		return
@@ -820,7 +826,7 @@ func (m *CategoryMutation) ClearBlogPosts() {
 	m.clearedblog_posts = true
 }
 
-// BlogPostsCleared returns if the "blog_posts" edge to the BlogPost entity was cleared.
+// BlogPostsCleared reports if the "blog_posts" edge to the BlogPost entity was cleared.
 func (m *CategoryMutation) BlogPostsCleared() bool {
 	return m.clearedblog_posts
 }
@@ -831,6 +837,7 @@ func (m *CategoryMutation) RemoveBlogPostIDs(ids ...int) {
 		m.removedblog_posts = make(map[int]struct{})
 	}
 	for i := range ids {
+		delete(m.blog_posts, ids[i])
 		m.removedblog_posts[ids[i]] = struct{}{}
 	}
 }
@@ -856,6 +863,11 @@ func (m *CategoryMutation) ResetBlogPosts() {
 	m.blog_posts = nil
 	m.clearedblog_posts = false
 	m.removedblog_posts = nil
+}
+
+// Where appends a list predicates to the CategoryMutation builder.
+func (m *CategoryMutation) Where(ps ...predicate.Category) {
+	m.predicates = append(m.predicates, ps...)
 }
 
 // Op returns the operation name.
@@ -1156,8 +1168,8 @@ func (m DependsOnSkippedMutation) Tx() (*Tx, error) {
 	return tx, nil
 }
 
-// ID returns the ID value in the mutation. Note that the ID
-// is only available if it was provided to the builder.
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
 func (m *DependsOnSkippedMutation) ID() (id int, exists bool) {
 	if m.id == nil {
 		return
@@ -1216,7 +1228,7 @@ func (m *DependsOnSkippedMutation) ClearSkipped() {
 	m.clearedskipped = true
 }
 
-// SkippedCleared returns if the "skipped" edge to the ImplicitSkippedMessage entity was cleared.
+// SkippedCleared reports if the "skipped" edge to the ImplicitSkippedMessage entity was cleared.
 func (m *DependsOnSkippedMutation) SkippedCleared() bool {
 	return m.clearedskipped
 }
@@ -1227,6 +1239,7 @@ func (m *DependsOnSkippedMutation) RemoveSkippedIDs(ids ...int) {
 		m.removedskipped = make(map[int]struct{})
 	}
 	for i := range ids {
+		delete(m.skipped, ids[i])
 		m.removedskipped[ids[i]] = struct{}{}
 	}
 }
@@ -1252,6 +1265,11 @@ func (m *DependsOnSkippedMutation) ResetSkipped() {
 	m.skipped = nil
 	m.clearedskipped = false
 	m.removedskipped = nil
+}
+
+// Where appends a list predicates to the DependsOnSkippedMutation builder.
+func (m *DependsOnSkippedMutation) Where(ps ...predicate.DependsOnSkipped) {
+	m.predicates = append(m.predicates, ps...)
 }
 
 // Op returns the operation name.
@@ -1533,8 +1551,8 @@ func (m DuplicateNumberMessageMutation) Tx() (*Tx, error) {
 	return tx, nil
 }
 
-// ID returns the ID value in the mutation. Note that the ID
-// is only available if it was provided to the builder.
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
 func (m *DuplicateNumberMessageMutation) ID() (id int, exists bool) {
 	if m.id == nil {
 		return
@@ -1612,6 +1630,11 @@ func (m *DuplicateNumberMessageMutation) OldWorld(ctx context.Context) (v string
 // ResetWorld resets all changes to the "world" field.
 func (m *DuplicateNumberMessageMutation) ResetWorld() {
 	m.world = nil
+}
+
+// Where appends a list predicates to the DuplicateNumberMessageMutation builder.
+func (m *DuplicateNumberMessageMutation) Where(ps ...predicate.DuplicateNumberMessage) {
+	m.predicates = append(m.predicates, ps...)
 }
 
 // Op returns the operation name.
@@ -1872,13 +1895,18 @@ func (m ExplicitSkippedMessageMutation) Tx() (*Tx, error) {
 	return tx, nil
 }
 
-// ID returns the ID value in the mutation. Note that the ID
-// is only available if it was provided to the builder.
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
 func (m *ExplicitSkippedMessageMutation) ID() (id int, exists bool) {
 	if m.id == nil {
 		return
 	}
 	return *m.id, true
+}
+
+// Where appends a list predicates to the ExplicitSkippedMessageMutation builder.
+func (m *ExplicitSkippedMessageMutation) Where(ps ...predicate.ExplicitSkippedMessage) {
+	m.predicates = append(m.predicates, ps...)
 }
 
 // Op returns the operation name.
@@ -2107,8 +2135,8 @@ func (m *ImageMutation) SetID(id uuid.UUID) {
 	m.id = &id
 }
 
-// ID returns the ID value in the mutation. Note that the ID
-// is only available if it was provided to the builder.
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
 func (m *ImageMutation) ID() (id uuid.UUID, exists bool) {
 	if m.id == nil {
 		return
@@ -2167,7 +2195,7 @@ func (m *ImageMutation) ClearUserProfilePic() {
 	m.cleareduser_profile_pic = true
 }
 
-// UserProfilePicCleared returns if the "user_profile_pic" edge to the User entity was cleared.
+// UserProfilePicCleared reports if the "user_profile_pic" edge to the User entity was cleared.
 func (m *ImageMutation) UserProfilePicCleared() bool {
 	return m.cleareduser_profile_pic
 }
@@ -2178,6 +2206,7 @@ func (m *ImageMutation) RemoveUserProfilePicIDs(ids ...int) {
 		m.removeduser_profile_pic = make(map[int]struct{})
 	}
 	for i := range ids {
+		delete(m.user_profile_pic, ids[i])
 		m.removeduser_profile_pic[ids[i]] = struct{}{}
 	}
 }
@@ -2203,6 +2232,11 @@ func (m *ImageMutation) ResetUserProfilePic() {
 	m.user_profile_pic = nil
 	m.cleareduser_profile_pic = false
 	m.removeduser_profile_pic = nil
+}
+
+// Where appends a list predicates to the ImageMutation builder.
+func (m *ImageMutation) Where(ps ...predicate.Image) {
+	m.predicates = append(m.predicates, ps...)
 }
 
 // Op returns the operation name.
@@ -2482,13 +2516,18 @@ func (m ImplicitSkippedMessageMutation) Tx() (*Tx, error) {
 	return tx, nil
 }
 
-// ID returns the ID value in the mutation. Note that the ID
-// is only available if it was provided to the builder.
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
 func (m *ImplicitSkippedMessageMutation) ID() (id int, exists bool) {
 	if m.id == nil {
 		return
 	}
 	return *m.id, true
+}
+
+// Where appends a list predicates to the ImplicitSkippedMessageMutation builder.
+func (m *ImplicitSkippedMessageMutation) Where(ps ...predicate.ImplicitSkippedMessage) {
+	m.predicates = append(m.predicates, ps...)
 }
 
 // Op returns the operation name.
@@ -2708,8 +2747,8 @@ func (m InvalidFieldMessageMutation) Tx() (*Tx, error) {
 	return tx, nil
 }
 
-// ID returns the ID value in the mutation. Note that the ID
-// is only available if it was provided to the builder.
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
 func (m *InvalidFieldMessageMutation) ID() (id int, exists bool) {
 	if m.id == nil {
 		return
@@ -2751,6 +2790,11 @@ func (m *InvalidFieldMessageMutation) OldJSON(ctx context.Context) (v *schema.So
 // ResetJSON resets all changes to the "json" field.
 func (m *InvalidFieldMessageMutation) ResetJSON() {
 	m.json = nil
+}
+
+// Where appends a list predicates to the InvalidFieldMessageMutation builder.
+func (m *InvalidFieldMessageMutation) Where(ps ...predicate.InvalidFieldMessage) {
+	m.predicates = append(m.predicates, ps...)
 }
 
 // Op returns the operation name.
@@ -2996,8 +3040,8 @@ func (m MessageWithEnumMutation) Tx() (*Tx, error) {
 	return tx, nil
 }
 
-// ID returns the ID value in the mutation. Note that the ID
-// is only available if it was provided to the builder.
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
 func (m *MessageWithEnumMutation) ID() (id int, exists bool) {
 	if m.id == nil {
 		return
@@ -3075,6 +3119,11 @@ func (m *MessageWithEnumMutation) OldEnumWithoutDefault(ctx context.Context) (v 
 // ResetEnumWithoutDefault resets all changes to the "enum_without_default" field.
 func (m *MessageWithEnumMutation) ResetEnumWithoutDefault() {
 	m.enum_without_default = nil
+}
+
+// Where appends a list predicates to the MessageWithEnumMutation builder.
+func (m *MessageWithEnumMutation) Where(ps ...predicate.MessageWithEnum) {
+	m.predicates = append(m.predicates, ps...)
 }
 
 // Op returns the operation name.
@@ -3337,8 +3386,8 @@ func (m MessageWithFieldOneMutation) Tx() (*Tx, error) {
 	return tx, nil
 }
 
-// ID returns the ID value in the mutation. Note that the ID
-// is only available if it was provided to the builder.
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
 func (m *MessageWithFieldOneMutation) ID() (id int, exists bool) {
 	if m.id == nil {
 		return
@@ -3400,6 +3449,11 @@ func (m *MessageWithFieldOneMutation) AddedFieldOne() (r int32, exists bool) {
 func (m *MessageWithFieldOneMutation) ResetFieldOne() {
 	m.field_one = nil
 	m.addfield_one = nil
+}
+
+// Where appends a list predicates to the MessageWithFieldOneMutation builder.
+func (m *MessageWithFieldOneMutation) Where(ps ...predicate.MessageWithFieldOne) {
+	m.predicates = append(m.predicates, ps...)
 }
 
 // Op returns the operation name.
@@ -3664,13 +3718,18 @@ func (m *MessageWithIDMutation) SetID(id int32) {
 	m.id = &id
 }
 
-// ID returns the ID value in the mutation. Note that the ID
-// is only available if it was provided to the builder.
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
 func (m *MessageWithIDMutation) ID() (id int32, exists bool) {
 	if m.id == nil {
 		return
 	}
 	return *m.id, true
+}
+
+// Where appends a list predicates to the MessageWithIDMutation builder.
+func (m *MessageWithIDMutation) Where(ps ...predicate.MessageWithID) {
+	m.predicates = append(m.predicates, ps...)
 }
 
 // Op returns the operation name.
@@ -3900,8 +3959,8 @@ func (m MessageWithOptionalsMutation) Tx() (*Tx, error) {
 	return tx, nil
 }
 
-// ID returns the ID value in the mutation. Note that the ID
-// is only available if it was provided to the builder.
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
 func (m *MessageWithOptionalsMutation) ID() (id int, exists bool) {
 	if m.id == nil {
 		return
@@ -4364,6 +4423,11 @@ func (m *MessageWithOptionalsMutation) ResetTimeOptional() {
 	delete(m.clearedFields, messagewithoptionals.FieldTimeOptional)
 }
 
+// Where appends a list predicates to the MessageWithOptionalsMutation builder.
+func (m *MessageWithOptionalsMutation) Where(ps ...predicate.MessageWithOptionals) {
+	m.predicates = append(m.predicates, ps...)
+}
+
 // Op returns the operation name.
 func (m *MessageWithOptionalsMutation) Op() Op {
 	return m.op
@@ -4815,8 +4879,8 @@ func (m MessageWithPackageNameMutation) Tx() (*Tx, error) {
 	return tx, nil
 }
 
-// ID returns the ID value in the mutation. Note that the ID
-// is only available if it was provided to the builder.
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
 func (m *MessageWithPackageNameMutation) ID() (id int, exists bool) {
 	if m.id == nil {
 		return
@@ -4858,6 +4922,11 @@ func (m *MessageWithPackageNameMutation) OldName(ctx context.Context) (v string,
 // ResetName resets all changes to the "name" field.
 func (m *MessageWithPackageNameMutation) ResetName() {
 	m.name = nil
+}
+
+// Where appends a list predicates to the MessageWithPackageNameMutation builder.
+func (m *MessageWithPackageNameMutation) Where(ps ...predicate.MessageWithPackageName) {
+	m.predicates = append(m.predicates, ps...)
 }
 
 // Op returns the operation name.
@@ -5105,8 +5174,8 @@ func (m PortalMutation) Tx() (*Tx, error) {
 	return tx, nil
 }
 
-// ID returns the ID value in the mutation. Note that the ID
-// is only available if it was provided to the builder.
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
 func (m *PortalMutation) ID() (id int, exists bool) {
 	if m.id == nil {
 		return
@@ -5196,7 +5265,7 @@ func (m *PortalMutation) ClearCategory() {
 	m.clearedcategory = true
 }
 
-// CategoryCleared returns if the "category" edge to the Category entity was cleared.
+// CategoryCleared reports if the "category" edge to the Category entity was cleared.
 func (m *PortalMutation) CategoryCleared() bool {
 	return m.clearedcategory
 }
@@ -5223,6 +5292,11 @@ func (m *PortalMutation) CategoryIDs() (ids []int) {
 func (m *PortalMutation) ResetCategory() {
 	m.category = nil
 	m.clearedcategory = false
+}
+
+// Where appends a list predicates to the PortalMutation builder.
+func (m *PortalMutation) Where(ps ...predicate.Portal) {
+	m.predicates = append(m.predicates, ps...)
 }
 
 // Op returns the operation name.
@@ -5518,8 +5592,8 @@ func (m UserMutation) Tx() (*Tx, error) {
 	return tx, nil
 }
 
-// ID returns the ID value in the mutation. Note that the ID
-// is only available if it was provided to the builder.
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
 func (m *UserMutation) ID() (id int, exists bool) {
 	if m.id == nil {
 		return
@@ -5614,7 +5688,7 @@ func (m *UserMutation) ClearBlogPosts() {
 	m.clearedblog_posts = true
 }
 
-// BlogPostsCleared returns if the "blog_posts" edge to the BlogPost entity was cleared.
+// BlogPostsCleared reports if the "blog_posts" edge to the BlogPost entity was cleared.
 func (m *UserMutation) BlogPostsCleared() bool {
 	return m.clearedblog_posts
 }
@@ -5625,6 +5699,7 @@ func (m *UserMutation) RemoveBlogPostIDs(ids ...int) {
 		m.removedblog_posts = make(map[int]struct{})
 	}
 	for i := range ids {
+		delete(m.blog_posts, ids[i])
 		m.removedblog_posts[ids[i]] = struct{}{}
 	}
 }
@@ -5662,7 +5737,7 @@ func (m *UserMutation) ClearProfilePic() {
 	m.clearedprofile_pic = true
 }
 
-// ProfilePicCleared returns if the "profile_pic" edge to the Image entity was cleared.
+// ProfilePicCleared reports if the "profile_pic" edge to the Image entity was cleared.
 func (m *UserMutation) ProfilePicCleared() bool {
 	return m.clearedprofile_pic
 }
@@ -5689,6 +5764,11 @@ func (m *UserMutation) ProfilePicIDs() (ids []uuid.UUID) {
 func (m *UserMutation) ResetProfilePic() {
 	m.profile_pic = nil
 	m.clearedprofile_pic = false
+}
+
+// Where appends a list predicates to the UserMutation builder.
+func (m *UserMutation) Where(ps ...predicate.User) {
+	m.predicates = append(m.predicates, ps...)
 }
 
 // Op returns the operation name.
@@ -6010,8 +6090,8 @@ func (m ValidMessageMutation) Tx() (*Tx, error) {
 	return tx, nil
 }
 
-// ID returns the ID value in the mutation. Note that the ID
-// is only available if it was provided to the builder.
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
 func (m *ValidMessageMutation) ID() (id int, exists bool) {
 	if m.id == nil {
 		return
@@ -6251,6 +6331,11 @@ func (m *ValidMessageMutation) ResetOpti8() {
 	m.opti8 = nil
 	m.addopti8 = nil
 	delete(m.clearedFields, validmessage.FieldOpti8)
+}
+
+// Where appends a list predicates to the ValidMessageMutation builder.
+func (m *ValidMessageMutation) Where(ps ...predicate.ValidMessage) {
+	m.predicates = append(m.predicates, ps...)
 }
 
 // Op returns the operation name.

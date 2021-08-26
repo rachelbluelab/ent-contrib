@@ -35,26 +35,35 @@ const (
 	FieldOptStr = "opt_str"
 	// FieldOptBool holds the string denoting the opt_bool field in the database.
 	FieldOptBool = "opt_bool"
+	// FieldBigInt holds the string denoting the big_int field in the database.
+	FieldBigInt = "big_int"
 	// EdgeGroup holds the string denoting the group edge name in mutations.
 	EdgeGroup = "group"
 	// EdgeAttachment holds the string denoting the attachment edge name in mutations.
 	EdgeAttachment = "attachment"
+	// EdgeReceived holds the string denoting the received edge name in mutations.
+	EdgeReceived = "received"
 	// Table holds the table name of the user in the database.
 	Table = "users"
-	// GroupTable is the table the holds the group relation/edge.
+	// GroupTable is the table that holds the group relation/edge.
 	GroupTable = "users"
 	// GroupInverseTable is the table name for the Group entity.
 	// It exists in this package in order to avoid circular dependency with the "group" package.
 	GroupInverseTable = "groups"
 	// GroupColumn is the table column denoting the group relation/edge.
 	GroupColumn = "user_group"
-	// AttachmentTable is the table the holds the attachment relation/edge.
+	// AttachmentTable is the table that holds the attachment relation/edge.
 	AttachmentTable = "attachments"
 	// AttachmentInverseTable is the table name for the Attachment entity.
 	// It exists in this package in order to avoid circular dependency with the "attachment" package.
 	AttachmentInverseTable = "attachments"
 	// AttachmentColumn is the table column denoting the attachment relation/edge.
 	AttachmentColumn = "user_attachment"
+	// ReceivedTable is the table that holds the received relation/edge. The primary key declared below.
+	ReceivedTable = "attachment_recipients"
+	// ReceivedInverseTable is the table name for the Attachment entity.
+	// It exists in this package in order to avoid circular dependency with the "attachment" package.
+	ReceivedInverseTable = "attachments"
 )
 
 // Columns holds all SQL columns for user fields.
@@ -72,6 +81,7 @@ var Columns = []string{
 	FieldOptNum,
 	FieldOptStr,
 	FieldOptBool,
+	FieldBigInt,
 }
 
 // ForeignKeys holds the SQL foreign-keys that are owned by the "users"
@@ -79,6 +89,12 @@ var Columns = []string{
 var ForeignKeys = []string{
 	"user_group",
 }
+
+var (
+	// ReceivedPrimaryKey and ReceivedColumn2 are the table columns denoting the
+	// primary key for the received relation (M2M).
+	ReceivedPrimaryKey = []string{"attachment_id", "user_id"}
+)
 
 // ValidColumn reports if the column name is valid (part of the table columns).
 func ValidColumn(column string) bool {

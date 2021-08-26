@@ -55,6 +55,8 @@ func (Todo) Fields() []ent.Field {
 			Annotations(
 				entgql.OrderField("TEXT"),
 			),
+		field.Bytes("blob").
+			Optional(),
 	}
 }
 
@@ -65,6 +67,11 @@ func (Todo) Edges() []ent.Edge {
 			Annotations(entgql.Bind()).
 			From("parent").
 			Annotations(entgql.Bind()).
+			Unique(),
+		edge.From("category", Category.Type).
+			Ref("todos").
+			Unique(),
+		edge.To("secret", VerySecret.Type).
 			Unique(),
 	}
 }

@@ -2,12 +2,26 @@ interface Node {
   id: ID!
 }
 
+type CategoryConfig {
+  maxMembers: Int
+}
+
+input CategoryConfigInput {
+  maxMembers: Int
+}
+
+enum CategoryStatus {
+  ENABLED
+  DISABLED
+}
+
 enum Status {
   IN_PROGRESS
   COMPLETED
 }
 
 scalar Time
+scalar Duration
 
 type Todo implements Node {
   id: ID!
@@ -17,6 +31,12 @@ type Todo implements Node {
   text: String!
   parent: Todo
   children: [Todo!]
+  category: Category
+}
+
+type Category implements Node {
+  id: ID!
+  text: String!
 }
 
 input TodoInput {
@@ -24,6 +44,7 @@ input TodoInput {
   priority: Int
   text: String!
   parent: ID
+  category_id: ID
 }
 
 scalar Cursor
@@ -66,13 +87,7 @@ input TodoOrder {
 type Query {
   node(id: ID!): Node
   nodes(ids: [ID!]!): [Node]!
-  todos(
-    after: Cursor
-    first: Int
-    before: Cursor
-    last: Int
-    orderBy: TodoOrder
-  ): TodoConnection
+  todos(after: Cursor, first: Int, before: Cursor, last: Int, orderBy: TodoOrder, where: TodoWhereInput): TodoConnection
 }
 
 type Mutation {

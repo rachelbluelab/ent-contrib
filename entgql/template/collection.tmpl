@@ -4,7 +4,9 @@ This source code is licensed under the Apache 2.0 license found
 in the LICENSE file in the root directory of this source tree.
 */}}
 
-{{ define "collection" }}
+{{/* gotype: entgo.io/ent/entc/gen.Graph */}}
+
+{{ define "gql_collection" }}
 {{ template "header" $ }}
 
 import (
@@ -13,10 +15,10 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 )
 
-{{ range $node := $.Nodes }}
+{{ range $node := filterNodes $.Nodes }}
 
 {{ $edges := dict }}
-{{ range $edge := $node.Edges }}
+{{ range $edge := filterEdges $node.Edges }}
 	{{ if $annotation := $edge.Annotations.EntGQL }}
 		{{ if $annotation.Bind }}
 			{{ if $annotation.Mapping }}{{ fail "bind and mapping annotations are mutually exclusive" }}{{ end }}

@@ -17,35 +17,10 @@ package runtime
 import (
 	"time"
 
-	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // ExtractTime returns the time.Time from a proto WKT Timestamp
 func ExtractTime(t *timestamppb.Timestamp) time.Time {
 	return t.AsTime()
-}
-
-// MustExtractUUIDBytes returns the []byte representation of the uuid.UUID, if it fails it panics.
-func MustExtractUUIDBytes(u uuid.UUID) []byte {
-	b, err := u.MarshalBinary()
-	if err != nil {
-		panic("entproto: cannot marshal UUID to byte slice")
-	}
-	return b
-}
-
-// MustBytesToUUID returns a uuid.UUID from byte-slice b, if it fails it panics.
-func MustBytesToUUID(b []byte) uuid.UUID {
-	u, err := uuid.FromBytes(b)
-	if err != nil {
-		panic("entproto: cannot unmarshal UUID from bytes")
-	}
-	return u
-}
-
-// ValidateUUID returns an error if b is not a valid UUID.
-func ValidateUUID(b []byte) error {
-	_, err := uuid.FromBytes(b)
-	return err
 }

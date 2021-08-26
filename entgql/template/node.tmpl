@@ -4,7 +4,9 @@ This source code is licensed under the Apache 2.0 license found
 in the LICENSE file in the root directory of this source tree.
 */}}
 
-{{ define "node" }}
+{{/* gotype: entgo.io/ent/entc/gen.Graph */}}
+
+{{ define "gql_node" }}
 {{ $pkg := base $.Config.Package }}
 {{ template "header" $ }}
 
@@ -12,10 +14,12 @@ in the LICENSE file in the root directory of this source tree.
 	{{ fail "node requires SQL storage" }}
 {{ end }}
 
+{{ $gqlNodes := filterNodes $.Nodes }}
+
 {{/* Ensure all id types have the same type */}}
 {{ $idType := $.IDType }}
-{{ if gt (len $.Nodes) 0 }}
-	{{ $idType = (index $.Nodes 0).ID.Type }}
+{{ if gt (len $gqlNodes) 0 }}
+	{{ $idType = (index $gqlNodes 0).ID.Type }}
 	{{ range $n := (slice $.Nodes 1) }}
 		{{ if ne $idType.Type $n.ID.Type.Type }}
 			{{ fail "node does not support multiple id types" }}
@@ -69,18 +73,18 @@ type Edge struct {
 }
 
 {{/* loop over all types and add implement the Node interface. */}}
-{{ range $n := $.Nodes }}
+{{ range $n := $gqlNodes }}
 	{{ $receiver := $n.Receiver }}
 	func ({{ $receiver }} *{{ $n.Name }}) Node(ctx context.Context) (node *Node, err error) {
 		node = &Node{
 			ID: {{ $receiver }}.ID,
 			Type: "{{ $n.Name }}",
 			Fields: make([]*Field, {{ len $n.Fields }}),
-			Edges: make([]*Edge, {{ len $n.Edges }}),
+			Edges: make([]*Edge, {{ len (filterEdges $n.Edges) }}),
 		}
-		{{- with $n.Fields }}
+		{{- with filterFields $n.Fields }}
 			var buf []byte
-			{{- range $i, $f := $n.Fields }}
+			{{- range $i, $f := filterFields $n.Fields }}
 				if buf, err = json.Marshal({{ $receiver }}.{{ pascal $f.Name }}); err != nil {
 					return nil, err
 				}
@@ -91,21 +95,15 @@ type Edge struct {
 				}
 			{{- end }}
 		{{- end }}
-		{{- with $n.Edges }}
-			{{- range $i, $e := $n.Edges }}
+		{{- with filterEdges $n.Edges }}
+			{{- range $i, $e := filterEdges $n.Edges }}
 				node.Edges[{{ $i }}] = &Edge{
 					Type: "{{ $e.Type.Name }}",
 					Name: "{{ $e.Name }}",
 				}
-				{{- if $idType.Numeric }}
-					node.Edges[{{ $i }}].IDs, err = {{ $receiver }}.{{ print "Query" (pascal $e.Name) }}().
-						Select({{ $e.Type.Package }}.FieldID).
-						{{ pascal $idType.String }}s(ctx)
-				{{- else }}
-					err = {{ $receiver }}.{{ print "Query" (pascal $e.Name) }}().
-						Select({{ $e.Type.Package }}.FieldID).
-						Scan(ctx, &node.Edges[{{ $i }}].IDs)
-				{{- end }}
+				err = {{ $receiver }}.{{ print "Query" (pascal $e.Name) }}().
+					Select({{ $e.Type.Package }}.FieldID).
+					Scan(ctx, &node.Edges[{{ $i }}].IDs)
 				if err != nil {
 					return nil, err
 				}
@@ -187,7 +185,7 @@ func (c *Client) Noder(ctx context.Context, id {{ $idType }}, opts ...NodeOption
 
 func (c *Client) noder(ctx context.Context, table string, id {{ $idType }}) (Noder, error) {
 	switch table {
-	{{- range $n := $.Nodes }}
+	{{- range $n := $gqlNodes }}
 		case {{ $n.Package }}.Table:
 			n, err := c.{{ $n.Name }}.Query().
 				Where({{ $n.Package }}.ID(id)).
@@ -273,7 +271,7 @@ func (c *Client) noders(ctx context.Context, table string, ids []{{ $idType }}) 
 		idmap[id] = append(idmap[id], &noders[i])
 	}
 	switch table {
-	{{- range $n := $.Nodes }}
+	{{- range $n := $gqlNodes }}
 		case {{ $n.Package }}.Table:
 			nodes, err := c.{{ $n.Name }}.Query().
 				Where({{ $n.Package }}.IDIn(ids...)).
@@ -334,7 +332,7 @@ func (c *Client) noders(ctx context.Context, table string, ids []{{ $idType }}) 
 		return tables, err
 	}
 
-	func (tables) load(ctx context.Context, drv dialect.Driver) ([]string, error) {
+	func (*tables) load(ctx context.Context, drv dialect.Driver) ([]string, error) {
 		rows := &sql.Rows{}
 		query, args := sql.Dialect(drv.Dialect()).
 			Select("type").

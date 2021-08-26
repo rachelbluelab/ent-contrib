@@ -20,6 +20,7 @@ type MessageWithPackageNameQuery struct {
 	config
 	limit      *int
 	offset     *int
+	unique     *bool
 	order      []OrderFunc
 	fields     []string
 	predicates []predicate.MessageWithPackageName
@@ -43,6 +44,13 @@ func (mwpnq *MessageWithPackageNameQuery) Limit(limit int) *MessageWithPackageNa
 // Offset adds an offset step to the query.
 func (mwpnq *MessageWithPackageNameQuery) Offset(offset int) *MessageWithPackageNameQuery {
 	mwpnq.offset = &offset
+	return mwpnq
+}
+
+// Unique configures the query builder to filter duplicate records on query.
+// By default, unique is set to true, and can be disabled using this method.
+func (mwpnq *MessageWithPackageNameQuery) Unique(unique bool) *MessageWithPackageNameQuery {
+	mwpnq.unique = &unique
 	return mwpnq
 }
 
@@ -279,8 +287,8 @@ func (mwpnq *MessageWithPackageNameQuery) GroupBy(field string, fields ...string
 //		Select(messagewithpackagename.FieldName).
 //		Scan(ctx, &v)
 //
-func (mwpnq *MessageWithPackageNameQuery) Select(field string, fields ...string) *MessageWithPackageNameSelect {
-	mwpnq.fields = append([]string{field}, fields...)
+func (mwpnq *MessageWithPackageNameQuery) Select(fields ...string) *MessageWithPackageNameSelect {
+	mwpnq.fields = append(mwpnq.fields, fields...)
 	return &MessageWithPackageNameSelect{MessageWithPackageNameQuery: mwpnq}
 }
 
@@ -352,6 +360,9 @@ func (mwpnq *MessageWithPackageNameQuery) querySpec() *sqlgraph.QuerySpec {
 		From:   mwpnq.sql,
 		Unique: true,
 	}
+	if unique := mwpnq.unique; unique != nil {
+		_spec.Unique = *unique
+	}
 	if fields := mwpnq.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, messagewithpackagename.FieldID)
@@ -377,7 +388,7 @@ func (mwpnq *MessageWithPackageNameQuery) querySpec() *sqlgraph.QuerySpec {
 	if ps := mwpnq.order; len(ps) > 0 {
 		_spec.Order = func(selector *sql.Selector) {
 			for i := range ps {
-				ps[i](selector, messagewithpackagename.ValidColumn)
+				ps[i](selector)
 			}
 		}
 	}
@@ -387,16 +398,20 @@ func (mwpnq *MessageWithPackageNameQuery) querySpec() *sqlgraph.QuerySpec {
 func (mwpnq *MessageWithPackageNameQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(mwpnq.driver.Dialect())
 	t1 := builder.Table(messagewithpackagename.Table)
-	selector := builder.Select(t1.Columns(messagewithpackagename.Columns...)...).From(t1)
+	columns := mwpnq.fields
+	if len(columns) == 0 {
+		columns = messagewithpackagename.Columns
+	}
+	selector := builder.Select(t1.Columns(columns...)...).From(t1)
 	if mwpnq.sql != nil {
 		selector = mwpnq.sql
-		selector.Select(selector.Columns(messagewithpackagename.Columns...)...)
+		selector.Select(selector.Columns(columns...)...)
 	}
 	for _, p := range mwpnq.predicates {
 		p(selector)
 	}
 	for _, p := range mwpnq.order {
-		p(selector, messagewithpackagename.ValidColumn)
+		p(selector)
 	}
 	if offset := mwpnq.offset; offset != nil {
 		// limit is mandatory for offset clause. We start
@@ -658,13 +673,24 @@ func (mwpngb *MessageWithPackageNameGroupBy) sqlScan(ctx context.Context, v inte
 }
 
 func (mwpngb *MessageWithPackageNameGroupBy) sqlQuery() *sql.Selector {
-	selector := mwpngb.sql
-	columns := make([]string, 0, len(mwpngb.fields)+len(mwpngb.fns))
-	columns = append(columns, mwpngb.fields...)
+	selector := mwpngb.sql.Select()
+	aggregation := make([]string, 0, len(mwpngb.fns))
 	for _, fn := range mwpngb.fns {
-		columns = append(columns, fn(selector, messagewithpackagename.ValidColumn))
+		aggregation = append(aggregation, fn(selector))
 	}
-	return selector.Select(columns...).GroupBy(mwpngb.fields...)
+	// If no columns were selected in a custom aggregation function, the default
+	// selection is the fields used for "group-by", and the aggregation functions.
+	if len(selector.SelectedColumns()) == 0 {
+		columns := make([]string, 0, len(mwpngb.fields)+len(mwpngb.fns))
+		for _, f := range mwpngb.fields {
+			columns = append(columns, selector.C(f))
+		}
+		for _, c := range aggregation {
+			columns = append(columns, c)
+		}
+		selector.Select(columns...)
+	}
+	return selector.GroupBy(selector.Columns(mwpngb.fields...)...)
 }
 
 // MessageWithPackageNameSelect is the builder for selecting fields of MessageWithPackageName entities.
@@ -880,16 +906,10 @@ func (mwpns *MessageWithPackageNameSelect) BoolX(ctx context.Context) bool {
 
 func (mwpns *MessageWithPackageNameSelect) sqlScan(ctx context.Context, v interface{}) error {
 	rows := &sql.Rows{}
-	query, args := mwpns.sqlQuery().Query()
+	query, args := mwpns.sql.Query()
 	if err := mwpns.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}
 	defer rows.Close()
 	return sql.ScanSlice(rows, v)
-}
-
-func (mwpns *MessageWithPackageNameSelect) sqlQuery() sql.Querier {
-	selector := mwpns.sql
-	selector.Select(selector.Columns(mwpns.fields...)...)
-	return selector
 }

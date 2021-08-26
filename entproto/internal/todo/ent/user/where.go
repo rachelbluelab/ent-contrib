@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"entgo.io/contrib/entproto/internal/todo/ent/predicate"
+	"entgo.io/contrib/entproto/internal/todo/ent/schema"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/google/uuid"
@@ -165,9 +166,16 @@ func OptStr(v string) predicate.User {
 }
 
 // OptBool applies equality check predicate on the "opt_bool" field. It's identical to OptBoolEQ.
-func OptBool(v string) predicate.User {
+func OptBool(v bool) predicate.User {
 	return predicate.User(func(s *sql.Selector) {
 		s.Where(sql.EQ(s.C(FieldOptBool), v))
+	})
+}
+
+// BigInt applies equality check predicate on the "big_int" field. It's identical to BigIntEQ.
+func BigInt(v schema.BigInt) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		s.Where(sql.EQ(s.C(FieldBigInt), v))
 	})
 }
 
@@ -1016,99 +1024,16 @@ func OptStrContainsFold(v string) predicate.User {
 }
 
 // OptBoolEQ applies the EQ predicate on the "opt_bool" field.
-func OptBoolEQ(v string) predicate.User {
+func OptBoolEQ(v bool) predicate.User {
 	return predicate.User(func(s *sql.Selector) {
 		s.Where(sql.EQ(s.C(FieldOptBool), v))
 	})
 }
 
 // OptBoolNEQ applies the NEQ predicate on the "opt_bool" field.
-func OptBoolNEQ(v string) predicate.User {
+func OptBoolNEQ(v bool) predicate.User {
 	return predicate.User(func(s *sql.Selector) {
 		s.Where(sql.NEQ(s.C(FieldOptBool), v))
-	})
-}
-
-// OptBoolIn applies the In predicate on the "opt_bool" field.
-func OptBoolIn(vs ...string) predicate.User {
-	v := make([]interface{}, len(vs))
-	for i := range v {
-		v[i] = vs[i]
-	}
-	return predicate.User(func(s *sql.Selector) {
-		// if not arguments were provided, append the FALSE constants,
-		// since we can't apply "IN ()". This will make this predicate falsy.
-		if len(v) == 0 {
-			s.Where(sql.False())
-			return
-		}
-		s.Where(sql.In(s.C(FieldOptBool), v...))
-	})
-}
-
-// OptBoolNotIn applies the NotIn predicate on the "opt_bool" field.
-func OptBoolNotIn(vs ...string) predicate.User {
-	v := make([]interface{}, len(vs))
-	for i := range v {
-		v[i] = vs[i]
-	}
-	return predicate.User(func(s *sql.Selector) {
-		// if not arguments were provided, append the FALSE constants,
-		// since we can't apply "IN ()". This will make this predicate falsy.
-		if len(v) == 0 {
-			s.Where(sql.False())
-			return
-		}
-		s.Where(sql.NotIn(s.C(FieldOptBool), v...))
-	})
-}
-
-// OptBoolGT applies the GT predicate on the "opt_bool" field.
-func OptBoolGT(v string) predicate.User {
-	return predicate.User(func(s *sql.Selector) {
-		s.Where(sql.GT(s.C(FieldOptBool), v))
-	})
-}
-
-// OptBoolGTE applies the GTE predicate on the "opt_bool" field.
-func OptBoolGTE(v string) predicate.User {
-	return predicate.User(func(s *sql.Selector) {
-		s.Where(sql.GTE(s.C(FieldOptBool), v))
-	})
-}
-
-// OptBoolLT applies the LT predicate on the "opt_bool" field.
-func OptBoolLT(v string) predicate.User {
-	return predicate.User(func(s *sql.Selector) {
-		s.Where(sql.LT(s.C(FieldOptBool), v))
-	})
-}
-
-// OptBoolLTE applies the LTE predicate on the "opt_bool" field.
-func OptBoolLTE(v string) predicate.User {
-	return predicate.User(func(s *sql.Selector) {
-		s.Where(sql.LTE(s.C(FieldOptBool), v))
-	})
-}
-
-// OptBoolContains applies the Contains predicate on the "opt_bool" field.
-func OptBoolContains(v string) predicate.User {
-	return predicate.User(func(s *sql.Selector) {
-		s.Where(sql.Contains(s.C(FieldOptBool), v))
-	})
-}
-
-// OptBoolHasPrefix applies the HasPrefix predicate on the "opt_bool" field.
-func OptBoolHasPrefix(v string) predicate.User {
-	return predicate.User(func(s *sql.Selector) {
-		s.Where(sql.HasPrefix(s.C(FieldOptBool), v))
-	})
-}
-
-// OptBoolHasSuffix applies the HasSuffix predicate on the "opt_bool" field.
-func OptBoolHasSuffix(v string) predicate.User {
-	return predicate.User(func(s *sql.Selector) {
-		s.Where(sql.HasSuffix(s.C(FieldOptBool), v))
 	})
 }
 
@@ -1126,17 +1051,93 @@ func OptBoolNotNil() predicate.User {
 	})
 }
 
-// OptBoolEqualFold applies the EqualFold predicate on the "opt_bool" field.
-func OptBoolEqualFold(v string) predicate.User {
+// BigIntEQ applies the EQ predicate on the "big_int" field.
+func BigIntEQ(v schema.BigInt) predicate.User {
 	return predicate.User(func(s *sql.Selector) {
-		s.Where(sql.EqualFold(s.C(FieldOptBool), v))
+		s.Where(sql.EQ(s.C(FieldBigInt), v))
 	})
 }
 
-// OptBoolContainsFold applies the ContainsFold predicate on the "opt_bool" field.
-func OptBoolContainsFold(v string) predicate.User {
+// BigIntNEQ applies the NEQ predicate on the "big_int" field.
+func BigIntNEQ(v schema.BigInt) predicate.User {
 	return predicate.User(func(s *sql.Selector) {
-		s.Where(sql.ContainsFold(s.C(FieldOptBool), v))
+		s.Where(sql.NEQ(s.C(FieldBigInt), v))
+	})
+}
+
+// BigIntIn applies the In predicate on the "big_int" field.
+func BigIntIn(vs ...schema.BigInt) predicate.User {
+	v := make([]interface{}, len(vs))
+	for i := range v {
+		v[i] = vs[i]
+	}
+	return predicate.User(func(s *sql.Selector) {
+		// if not arguments were provided, append the FALSE constants,
+		// since we can't apply "IN ()". This will make this predicate falsy.
+		if len(v) == 0 {
+			s.Where(sql.False())
+			return
+		}
+		s.Where(sql.In(s.C(FieldBigInt), v...))
+	})
+}
+
+// BigIntNotIn applies the NotIn predicate on the "big_int" field.
+func BigIntNotIn(vs ...schema.BigInt) predicate.User {
+	v := make([]interface{}, len(vs))
+	for i := range v {
+		v[i] = vs[i]
+	}
+	return predicate.User(func(s *sql.Selector) {
+		// if not arguments were provided, append the FALSE constants,
+		// since we can't apply "IN ()". This will make this predicate falsy.
+		if len(v) == 0 {
+			s.Where(sql.False())
+			return
+		}
+		s.Where(sql.NotIn(s.C(FieldBigInt), v...))
+	})
+}
+
+// BigIntGT applies the GT predicate on the "big_int" field.
+func BigIntGT(v schema.BigInt) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		s.Where(sql.GT(s.C(FieldBigInt), v))
+	})
+}
+
+// BigIntGTE applies the GTE predicate on the "big_int" field.
+func BigIntGTE(v schema.BigInt) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		s.Where(sql.GTE(s.C(FieldBigInt), v))
+	})
+}
+
+// BigIntLT applies the LT predicate on the "big_int" field.
+func BigIntLT(v schema.BigInt) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		s.Where(sql.LT(s.C(FieldBigInt), v))
+	})
+}
+
+// BigIntLTE applies the LTE predicate on the "big_int" field.
+func BigIntLTE(v schema.BigInt) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		s.Where(sql.LTE(s.C(FieldBigInt), v))
+	})
+}
+
+// BigIntIsNil applies the IsNil predicate on the "big_int" field.
+func BigIntIsNil() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		s.Where(sql.IsNull(s.C(FieldBigInt)))
+	})
+}
+
+// BigIntNotNil applies the NotNil predicate on the "big_int" field.
+func BigIntNotNil() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		s.Where(sql.NotNull(s.C(FieldBigInt)))
 	})
 }
 
@@ -1187,6 +1188,34 @@ func HasAttachmentWith(preds ...predicate.Attachment) predicate.User {
 			sqlgraph.From(Table, FieldID),
 			sqlgraph.To(AttachmentInverseTable, FieldID),
 			sqlgraph.Edge(sqlgraph.O2O, false, AttachmentTable, AttachmentColumn),
+		)
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasReceived applies the HasEdge predicate on the "received" edge.
+func HasReceived() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.To(ReceivedTable, FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, true, ReceivedTable, ReceivedPrimaryKey...),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasReceivedWith applies the HasEdge predicate on the "received" edge with a given conditions (other predicates).
+func HasReceivedWith(preds ...predicate.Attachment) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.To(ReceivedInverseTable, FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, true, ReceivedTable, ReceivedPrimaryKey...),
 		)
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {

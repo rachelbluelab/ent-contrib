@@ -22,9 +22,9 @@ type ValidMessageUpdate struct {
 	mutation *ValidMessageMutation
 }
 
-// Where adds a new predicate for the ValidMessageUpdate builder.
+// Where appends a list predicates to the ValidMessageUpdate builder.
 func (vmu *ValidMessageUpdate) Where(ps ...predicate.ValidMessage) *ValidMessageUpdate {
-	vmu.mutation.predicates = append(vmu.mutation.predicates, ps...)
+	vmu.mutation.Where(ps...)
 	return vmu
 }
 
@@ -111,6 +111,9 @@ func (vmu *ValidMessageUpdate) Save(ctx context.Context) (int, error) {
 			return affected, err
 		})
 		for i := len(vmu.hooks) - 1; i >= 0; i-- {
+			if vmu.hooks[i] == nil {
+				return 0, fmt.Errorf("ent: uninitialized hook (forgotten import ent/runtime?)")
+			}
 			mut = vmu.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, vmu.mutation); err != nil {
@@ -218,8 +221,8 @@ func (vmu *ValidMessageUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	if n, err = sqlgraph.UpdateNodes(ctx, vmu.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{validmessage.Label}
-		} else if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		} else if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return 0, err
 	}
@@ -229,6 +232,7 @@ func (vmu *ValidMessageUpdate) sqlSave(ctx context.Context) (n int, err error) {
 // ValidMessageUpdateOne is the builder for updating a single ValidMessage entity.
 type ValidMessageUpdateOne struct {
 	config
+	fields   []string
 	hooks    []Hook
 	mutation *ValidMessageMutation
 }
@@ -296,6 +300,13 @@ func (vmuo *ValidMessageUpdateOne) Mutation() *ValidMessageMutation {
 	return vmuo.mutation
 }
 
+// Select allows selecting one or more fields (columns) of the returned entity.
+// The default is selecting all fields defined in the entity schema.
+func (vmuo *ValidMessageUpdateOne) Select(field string, fields ...string) *ValidMessageUpdateOne {
+	vmuo.fields = append([]string{field}, fields...)
+	return vmuo
+}
+
 // Save executes the query and returns the updated ValidMessage entity.
 func (vmuo *ValidMessageUpdateOne) Save(ctx context.Context) (*ValidMessage, error) {
 	var (
@@ -316,6 +327,9 @@ func (vmuo *ValidMessageUpdateOne) Save(ctx context.Context) (*ValidMessage, err
 			return node, err
 		})
 		for i := len(vmuo.hooks) - 1; i >= 0; i-- {
+			if vmuo.hooks[i] == nil {
+				return nil, fmt.Errorf("ent: uninitialized hook (forgotten import ent/runtime?)")
+			}
 			mut = vmuo.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, vmuo.mutation); err != nil {
@@ -363,6 +377,18 @@ func (vmuo *ValidMessageUpdateOne) sqlSave(ctx context.Context) (_node *ValidMes
 		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing ValidMessage.ID for update")}
 	}
 	_spec.Node.ID.Value = id
+	if fields := vmuo.fields; len(fields) > 0 {
+		_spec.Node.Columns = make([]string, 0, len(fields))
+		_spec.Node.Columns = append(_spec.Node.Columns, validmessage.FieldID)
+		for _, f := range fields {
+			if !validmessage.ValidColumn(f) {
+				return nil, &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
+			}
+			if f != validmessage.FieldID {
+				_spec.Node.Columns = append(_spec.Node.Columns, f)
+			}
+		}
+	}
 	if ps := vmuo.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
@@ -431,8 +457,8 @@ func (vmuo *ValidMessageUpdateOne) sqlSave(ctx context.Context) (_node *ValidMes
 	if err = sqlgraph.UpdateNode(ctx, vmuo.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{validmessage.Label}
-		} else if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		} else if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return nil, err
 	}

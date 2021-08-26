@@ -22,6 +22,7 @@ type CategoryQuery struct {
 	config
 	limit      *int
 	offset     *int
+	unique     *bool
 	order      []OrderFunc
 	fields     []string
 	predicates []predicate.Category
@@ -47,6 +48,13 @@ func (cq *CategoryQuery) Limit(limit int) *CategoryQuery {
 // Offset adds an offset step to the query.
 func (cq *CategoryQuery) Offset(offset int) *CategoryQuery {
 	cq.offset = &offset
+	return cq
+}
+
+// Unique configures the query builder to filter duplicate records on query.
+// By default, unique is set to true, and can be disabled using this method.
+func (cq *CategoryQuery) Unique(unique bool) *CategoryQuery {
+	cq.unique = &unique
 	return cq
 }
 
@@ -317,8 +325,8 @@ func (cq *CategoryQuery) GroupBy(field string, fields ...string) *CategoryGroupB
 //		Select(category.FieldName).
 //		Scan(ctx, &v)
 //
-func (cq *CategoryQuery) Select(field string, fields ...string) *CategorySelect {
-	cq.fields = append([]string{field}, fields...)
+func (cq *CategoryQuery) Select(fields ...string) *CategorySelect {
+	cq.fields = append(cq.fields, fields...)
 	return &CategorySelect{CategoryQuery: cq}
 }
 
@@ -387,9 +395,8 @@ func (cq *CategoryQuery) sqlAll(ctx context.Context) ([]*Category, error) {
 			Predicate: func(s *sql.Selector) {
 				s.Where(sql.InValues(category.BlogPostsPrimaryKey[0], fks...))
 			},
-
 			ScanValues: func() [2]interface{} {
-				return [2]interface{}{&sql.NullInt64{}, &sql.NullInt64{}}
+				return [2]interface{}{new(sql.NullInt64), new(sql.NullInt64)}
 			},
 			Assign: func(out, in interface{}) error {
 				eout, ok := out.(*sql.NullInt64)
@@ -406,7 +413,9 @@ func (cq *CategoryQuery) sqlAll(ctx context.Context) ([]*Category, error) {
 				if !ok {
 					return fmt.Errorf("unexpected node id in edges: %v", outValue)
 				}
-				edgeids = append(edgeids, inValue)
+				if _, ok := edges[inValue]; !ok {
+					edgeids = append(edgeids, inValue)
+				}
 				edges[inValue] = append(edges[inValue], node)
 				return nil
 			},
@@ -459,6 +468,9 @@ func (cq *CategoryQuery) querySpec() *sqlgraph.QuerySpec {
 		From:   cq.sql,
 		Unique: true,
 	}
+	if unique := cq.unique; unique != nil {
+		_spec.Unique = *unique
+	}
 	if fields := cq.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, category.FieldID)
@@ -484,7 +496,7 @@ func (cq *CategoryQuery) querySpec() *sqlgraph.QuerySpec {
 	if ps := cq.order; len(ps) > 0 {
 		_spec.Order = func(selector *sql.Selector) {
 			for i := range ps {
-				ps[i](selector, category.ValidColumn)
+				ps[i](selector)
 			}
 		}
 	}
@@ -494,16 +506,20 @@ func (cq *CategoryQuery) querySpec() *sqlgraph.QuerySpec {
 func (cq *CategoryQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(cq.driver.Dialect())
 	t1 := builder.Table(category.Table)
-	selector := builder.Select(t1.Columns(category.Columns...)...).From(t1)
+	columns := cq.fields
+	if len(columns) == 0 {
+		columns = category.Columns
+	}
+	selector := builder.Select(t1.Columns(columns...)...).From(t1)
 	if cq.sql != nil {
 		selector = cq.sql
-		selector.Select(selector.Columns(category.Columns...)...)
+		selector.Select(selector.Columns(columns...)...)
 	}
 	for _, p := range cq.predicates {
 		p(selector)
 	}
 	for _, p := range cq.order {
-		p(selector, category.ValidColumn)
+		p(selector)
 	}
 	if offset := cq.offset; offset != nil {
 		// limit is mandatory for offset clause. We start
@@ -765,13 +781,24 @@ func (cgb *CategoryGroupBy) sqlScan(ctx context.Context, v interface{}) error {
 }
 
 func (cgb *CategoryGroupBy) sqlQuery() *sql.Selector {
-	selector := cgb.sql
-	columns := make([]string, 0, len(cgb.fields)+len(cgb.fns))
-	columns = append(columns, cgb.fields...)
+	selector := cgb.sql.Select()
+	aggregation := make([]string, 0, len(cgb.fns))
 	for _, fn := range cgb.fns {
-		columns = append(columns, fn(selector, category.ValidColumn))
+		aggregation = append(aggregation, fn(selector))
 	}
-	return selector.Select(columns...).GroupBy(cgb.fields...)
+	// If no columns were selected in a custom aggregation function, the default
+	// selection is the fields used for "group-by", and the aggregation functions.
+	if len(selector.SelectedColumns()) == 0 {
+		columns := make([]string, 0, len(cgb.fields)+len(cgb.fns))
+		for _, f := range cgb.fields {
+			columns = append(columns, selector.C(f))
+		}
+		for _, c := range aggregation {
+			columns = append(columns, c)
+		}
+		selector.Select(columns...)
+	}
+	return selector.GroupBy(selector.Columns(cgb.fields...)...)
 }
 
 // CategorySelect is the builder for selecting fields of Category entities.
@@ -987,16 +1014,10 @@ func (cs *CategorySelect) BoolX(ctx context.Context) bool {
 
 func (cs *CategorySelect) sqlScan(ctx context.Context, v interface{}) error {
 	rows := &sql.Rows{}
-	query, args := cs.sqlQuery().Query()
+	query, args := cs.sql.Query()
 	if err := cs.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}
 	defer rows.Close()
 	return sql.ScanSlice(rows, v)
-}
-
-func (cs *CategorySelect) sqlQuery() sql.Querier {
-	selector := cs.sql
-	selector.Select(selector.Columns(cs.fields...)...)
-	return selector
 }

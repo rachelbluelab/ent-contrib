@@ -20,6 +20,7 @@ type MessageWithIDQuery struct {
 	config
 	limit      *int
 	offset     *int
+	unique     *bool
 	order      []OrderFunc
 	fields     []string
 	predicates []predicate.MessageWithID
@@ -43,6 +44,13 @@ func (mwiq *MessageWithIDQuery) Limit(limit int) *MessageWithIDQuery {
 // Offset adds an offset step to the query.
 func (mwiq *MessageWithIDQuery) Offset(offset int) *MessageWithIDQuery {
 	mwiq.offset = &offset
+	return mwiq
+}
+
+// Unique configures the query builder to filter duplicate records on query.
+// By default, unique is set to true, and can be disabled using this method.
+func (mwiq *MessageWithIDQuery) Unique(unique bool) *MessageWithIDQuery {
+	mwiq.unique = &unique
 	return mwiq
 }
 
@@ -255,8 +263,8 @@ func (mwiq *MessageWithIDQuery) GroupBy(field string, fields ...string) *Message
 
 // Select allows the selection one or more fields/columns for the given query,
 // instead of selecting all fields in the entity.
-func (mwiq *MessageWithIDQuery) Select(field string, fields ...string) *MessageWithIDSelect {
-	mwiq.fields = append([]string{field}, fields...)
+func (mwiq *MessageWithIDQuery) Select(fields ...string) *MessageWithIDSelect {
+	mwiq.fields = append(mwiq.fields, fields...)
 	return &MessageWithIDSelect{MessageWithIDQuery: mwiq}
 }
 
@@ -328,6 +336,9 @@ func (mwiq *MessageWithIDQuery) querySpec() *sqlgraph.QuerySpec {
 		From:   mwiq.sql,
 		Unique: true,
 	}
+	if unique := mwiq.unique; unique != nil {
+		_spec.Unique = *unique
+	}
 	if fields := mwiq.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, messagewithid.FieldID)
@@ -353,7 +364,7 @@ func (mwiq *MessageWithIDQuery) querySpec() *sqlgraph.QuerySpec {
 	if ps := mwiq.order; len(ps) > 0 {
 		_spec.Order = func(selector *sql.Selector) {
 			for i := range ps {
-				ps[i](selector, messagewithid.ValidColumn)
+				ps[i](selector)
 			}
 		}
 	}
@@ -363,16 +374,20 @@ func (mwiq *MessageWithIDQuery) querySpec() *sqlgraph.QuerySpec {
 func (mwiq *MessageWithIDQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(mwiq.driver.Dialect())
 	t1 := builder.Table(messagewithid.Table)
-	selector := builder.Select(t1.Columns(messagewithid.Columns...)...).From(t1)
+	columns := mwiq.fields
+	if len(columns) == 0 {
+		columns = messagewithid.Columns
+	}
+	selector := builder.Select(t1.Columns(columns...)...).From(t1)
 	if mwiq.sql != nil {
 		selector = mwiq.sql
-		selector.Select(selector.Columns(messagewithid.Columns...)...)
+		selector.Select(selector.Columns(columns...)...)
 	}
 	for _, p := range mwiq.predicates {
 		p(selector)
 	}
 	for _, p := range mwiq.order {
-		p(selector, messagewithid.ValidColumn)
+		p(selector)
 	}
 	if offset := mwiq.offset; offset != nil {
 		// limit is mandatory for offset clause. We start
@@ -634,13 +649,24 @@ func (mwigb *MessageWithIDGroupBy) sqlScan(ctx context.Context, v interface{}) e
 }
 
 func (mwigb *MessageWithIDGroupBy) sqlQuery() *sql.Selector {
-	selector := mwigb.sql
-	columns := make([]string, 0, len(mwigb.fields)+len(mwigb.fns))
-	columns = append(columns, mwigb.fields...)
+	selector := mwigb.sql.Select()
+	aggregation := make([]string, 0, len(mwigb.fns))
 	for _, fn := range mwigb.fns {
-		columns = append(columns, fn(selector, messagewithid.ValidColumn))
+		aggregation = append(aggregation, fn(selector))
 	}
-	return selector.Select(columns...).GroupBy(mwigb.fields...)
+	// If no columns were selected in a custom aggregation function, the default
+	// selection is the fields used for "group-by", and the aggregation functions.
+	if len(selector.SelectedColumns()) == 0 {
+		columns := make([]string, 0, len(mwigb.fields)+len(mwigb.fns))
+		for _, f := range mwigb.fields {
+			columns = append(columns, selector.C(f))
+		}
+		for _, c := range aggregation {
+			columns = append(columns, c)
+		}
+		selector.Select(columns...)
+	}
+	return selector.GroupBy(selector.Columns(mwigb.fields...)...)
 }
 
 // MessageWithIDSelect is the builder for selecting fields of MessageWithID entities.
@@ -856,16 +882,10 @@ func (mwis *MessageWithIDSelect) BoolX(ctx context.Context) bool {
 
 func (mwis *MessageWithIDSelect) sqlScan(ctx context.Context, v interface{}) error {
 	rows := &sql.Rows{}
-	query, args := mwis.sqlQuery().Query()
+	query, args := mwis.sql.Query()
 	if err := mwis.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}
 	defer rows.Close()
 	return sql.ScanSlice(rows, v)
-}
-
-func (mwis *MessageWithIDSelect) sqlQuery() sql.Querier {
-	selector := mwis.sql
-	selector.Select(selector.Columns(mwis.fields...)...)
-	return selector
 }

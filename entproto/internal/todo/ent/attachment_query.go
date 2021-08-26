@@ -4,6 +4,7 @@ package ent
 
 import (
 	"context"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"math"
@@ -22,12 +23,14 @@ type AttachmentQuery struct {
 	config
 	limit      *int
 	offset     *int
+	unique     *bool
 	order      []OrderFunc
 	fields     []string
 	predicates []predicate.Attachment
 	// eager-loading edges.
-	withUser *UserQuery
-	withFKs  bool
+	withUser       *UserQuery
+	withRecipients *UserQuery
+	withFKs        bool
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -48,6 +51,13 @@ func (aq *AttachmentQuery) Limit(limit int) *AttachmentQuery {
 // Offset adds an offset step to the query.
 func (aq *AttachmentQuery) Offset(offset int) *AttachmentQuery {
 	aq.offset = &offset
+	return aq
+}
+
+// Unique configures the query builder to filter duplicate records on query.
+// By default, unique is set to true, and can be disabled using this method.
+func (aq *AttachmentQuery) Unique(unique bool) *AttachmentQuery {
+	aq.unique = &unique
 	return aq
 }
 
@@ -72,6 +82,28 @@ func (aq *AttachmentQuery) QueryUser() *UserQuery {
 			sqlgraph.From(attachment.Table, attachment.FieldID, selector),
 			sqlgraph.To(user.Table, user.FieldID),
 			sqlgraph.Edge(sqlgraph.O2O, true, attachment.UserTable, attachment.UserColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(aq.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryRecipients chains the current query on the "recipients" edge.
+func (aq *AttachmentQuery) QueryRecipients() *UserQuery {
+	query := &UserQuery{config: aq.config}
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := aq.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := aq.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(attachment.Table, attachment.FieldID, selector),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, false, attachment.RecipientsTable, attachment.RecipientsPrimaryKey...),
 		)
 		fromU = sqlgraph.SetNeighbors(aq.driver.Dialect(), step)
 		return fromU, nil
@@ -255,12 +287,13 @@ func (aq *AttachmentQuery) Clone() *AttachmentQuery {
 		return nil
 	}
 	return &AttachmentQuery{
-		config:     aq.config,
-		limit:      aq.limit,
-		offset:     aq.offset,
-		order:      append([]OrderFunc{}, aq.order...),
-		predicates: append([]predicate.Attachment{}, aq.predicates...),
-		withUser:   aq.withUser.Clone(),
+		config:         aq.config,
+		limit:          aq.limit,
+		offset:         aq.offset,
+		order:          append([]OrderFunc{}, aq.order...),
+		predicates:     append([]predicate.Attachment{}, aq.predicates...),
+		withUser:       aq.withUser.Clone(),
+		withRecipients: aq.withRecipients.Clone(),
 		// clone intermediate query.
 		sql:  aq.sql.Clone(),
 		path: aq.path,
@@ -275,6 +308,17 @@ func (aq *AttachmentQuery) WithUser(opts ...func(*UserQuery)) *AttachmentQuery {
 		opt(query)
 	}
 	aq.withUser = query
+	return aq
+}
+
+// WithRecipients tells the query-builder to eager-load the nodes that are connected to
+// the "recipients" edge. The optional arguments are used to configure the query builder of the edge.
+func (aq *AttachmentQuery) WithRecipients(opts ...func(*UserQuery)) *AttachmentQuery {
+	query := &UserQuery{config: aq.config}
+	for _, opt := range opts {
+		opt(query)
+	}
+	aq.withRecipients = query
 	return aq
 }
 
@@ -294,8 +338,8 @@ func (aq *AttachmentQuery) GroupBy(field string, fields ...string) *AttachmentGr
 
 // Select allows the selection one or more fields/columns for the given query,
 // instead of selecting all fields in the entity.
-func (aq *AttachmentQuery) Select(field string, fields ...string) *AttachmentSelect {
-	aq.fields = append([]string{field}, fields...)
+func (aq *AttachmentQuery) Select(fields ...string) *AttachmentSelect {
+	aq.fields = append(aq.fields, fields...)
 	return &AttachmentSelect{AttachmentQuery: aq}
 }
 
@@ -320,8 +364,9 @@ func (aq *AttachmentQuery) sqlAll(ctx context.Context) ([]*Attachment, error) {
 		nodes       = []*Attachment{}
 		withFKs     = aq.withFKs
 		_spec       = aq.querySpec()
-		loadedTypes = [1]bool{
+		loadedTypes = [2]bool{
 			aq.withUser != nil,
+			aq.withRecipients != nil,
 		}
 	)
 	if aq.withUser != nil {
@@ -354,11 +399,14 @@ func (aq *AttachmentQuery) sqlAll(ctx context.Context) ([]*Attachment, error) {
 		ids := make([]int, 0, len(nodes))
 		nodeids := make(map[int][]*Attachment)
 		for i := range nodes {
-			fk := nodes[i].user_attachment
-			if fk != nil {
-				ids = append(ids, *fk)
-				nodeids[*fk] = append(nodeids[*fk], nodes[i])
+			if nodes[i].user_attachment == nil {
+				continue
 			}
+			fk := *nodes[i].user_attachment
+			if _, ok := nodeids[fk]; !ok {
+				ids = append(ids, fk)
+			}
+			nodeids[fk] = append(nodeids[fk], nodes[i])
 		}
 		query.Where(user.IDIn(ids...))
 		neighbors, err := query.All(ctx)
@@ -372,6 +420,71 @@ func (aq *AttachmentQuery) sqlAll(ctx context.Context) ([]*Attachment, error) {
 			}
 			for i := range nodes {
 				nodes[i].Edges.User = n
+			}
+		}
+	}
+
+	if query := aq.withRecipients; query != nil {
+		fks := make([]driver.Value, 0, len(nodes))
+		ids := make(map[uuid.UUID]*Attachment, len(nodes))
+		for _, node := range nodes {
+			ids[node.ID] = node
+			fks = append(fks, node.ID)
+			node.Edges.Recipients = []*User{}
+		}
+		var (
+			edgeids []int
+			edges   = make(map[int][]*Attachment)
+		)
+		_spec := &sqlgraph.EdgeQuerySpec{
+			Edge: &sqlgraph.EdgeSpec{
+				Inverse: false,
+				Table:   attachment.RecipientsTable,
+				Columns: attachment.RecipientsPrimaryKey,
+			},
+			Predicate: func(s *sql.Selector) {
+				s.Where(sql.InValues(attachment.RecipientsPrimaryKey[0], fks...))
+			},
+			ScanValues: func() [2]interface{} {
+				return [2]interface{}{new(uuid.UUID), new(sql.NullInt64)}
+			},
+			Assign: func(out, in interface{}) error {
+				eout, ok := out.(*uuid.UUID)
+				if !ok || eout == nil {
+					return fmt.Errorf("unexpected id value for edge-out")
+				}
+				ein, ok := in.(*sql.NullInt64)
+				if !ok || ein == nil {
+					return fmt.Errorf("unexpected id value for edge-in")
+				}
+				outValue := *eout
+				inValue := int(ein.Int64)
+				node, ok := ids[outValue]
+				if !ok {
+					return fmt.Errorf("unexpected node id in edges: %v", outValue)
+				}
+				if _, ok := edges[inValue]; !ok {
+					edgeids = append(edgeids, inValue)
+				}
+				edges[inValue] = append(edges[inValue], node)
+				return nil
+			},
+		}
+		if err := sqlgraph.QueryEdges(ctx, aq.driver, _spec); err != nil {
+			return nil, fmt.Errorf(`query edges "recipients": %w`, err)
+		}
+		query.Where(user.IDIn(edgeids...))
+		neighbors, err := query.All(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, n := range neighbors {
+			nodes, ok := edges[n.ID]
+			if !ok {
+				return nil, fmt.Errorf(`unexpected "recipients" node returned %v`, n.ID)
+			}
+			for i := range nodes {
+				nodes[i].Edges.Recipients = append(nodes[i].Edges.Recipients, n)
 			}
 		}
 	}
@@ -405,6 +518,9 @@ func (aq *AttachmentQuery) querySpec() *sqlgraph.QuerySpec {
 		From:   aq.sql,
 		Unique: true,
 	}
+	if unique := aq.unique; unique != nil {
+		_spec.Unique = *unique
+	}
 	if fields := aq.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, attachment.FieldID)
@@ -430,7 +546,7 @@ func (aq *AttachmentQuery) querySpec() *sqlgraph.QuerySpec {
 	if ps := aq.order; len(ps) > 0 {
 		_spec.Order = func(selector *sql.Selector) {
 			for i := range ps {
-				ps[i](selector, attachment.ValidColumn)
+				ps[i](selector)
 			}
 		}
 	}
@@ -440,16 +556,20 @@ func (aq *AttachmentQuery) querySpec() *sqlgraph.QuerySpec {
 func (aq *AttachmentQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(aq.driver.Dialect())
 	t1 := builder.Table(attachment.Table)
-	selector := builder.Select(t1.Columns(attachment.Columns...)...).From(t1)
+	columns := aq.fields
+	if len(columns) == 0 {
+		columns = attachment.Columns
+	}
+	selector := builder.Select(t1.Columns(columns...)...).From(t1)
 	if aq.sql != nil {
 		selector = aq.sql
-		selector.Select(selector.Columns(attachment.Columns...)...)
+		selector.Select(selector.Columns(columns...)...)
 	}
 	for _, p := range aq.predicates {
 		p(selector)
 	}
 	for _, p := range aq.order {
-		p(selector, attachment.ValidColumn)
+		p(selector)
 	}
 	if offset := aq.offset; offset != nil {
 		// limit is mandatory for offset clause. We start
@@ -711,13 +831,24 @@ func (agb *AttachmentGroupBy) sqlScan(ctx context.Context, v interface{}) error 
 }
 
 func (agb *AttachmentGroupBy) sqlQuery() *sql.Selector {
-	selector := agb.sql
-	columns := make([]string, 0, len(agb.fields)+len(agb.fns))
-	columns = append(columns, agb.fields...)
+	selector := agb.sql.Select()
+	aggregation := make([]string, 0, len(agb.fns))
 	for _, fn := range agb.fns {
-		columns = append(columns, fn(selector, attachment.ValidColumn))
+		aggregation = append(aggregation, fn(selector))
 	}
-	return selector.Select(columns...).GroupBy(agb.fields...)
+	// If no columns were selected in a custom aggregation function, the default
+	// selection is the fields used for "group-by", and the aggregation functions.
+	if len(selector.SelectedColumns()) == 0 {
+		columns := make([]string, 0, len(agb.fields)+len(agb.fns))
+		for _, f := range agb.fields {
+			columns = append(columns, selector.C(f))
+		}
+		for _, c := range aggregation {
+			columns = append(columns, c)
+		}
+		selector.Select(columns...)
+	}
+	return selector.GroupBy(selector.Columns(agb.fields...)...)
 }
 
 // AttachmentSelect is the builder for selecting fields of Attachment entities.
@@ -933,16 +1064,10 @@ func (as *AttachmentSelect) BoolX(ctx context.Context) bool {
 
 func (as *AttachmentSelect) sqlScan(ctx context.Context, v interface{}) error {
 	rows := &sql.Rows{}
-	query, args := as.sqlQuery().Query()
+	query, args := as.sql.Query()
 	if err := as.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}
 	defer rows.Close()
 	return sql.ScanSlice(rows, v)
-}
-
-func (as *AttachmentSelect) sqlQuery() sql.Querier {
-	selector := as.sql
-	selector.Select(selector.Columns(as.fields...)...)
-	return selector
 }

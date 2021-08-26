@@ -20,6 +20,7 @@ type ExplicitSkippedMessageQuery struct {
 	config
 	limit      *int
 	offset     *int
+	unique     *bool
 	order      []OrderFunc
 	fields     []string
 	predicates []predicate.ExplicitSkippedMessage
@@ -43,6 +44,13 @@ func (esmq *ExplicitSkippedMessageQuery) Limit(limit int) *ExplicitSkippedMessag
 // Offset adds an offset step to the query.
 func (esmq *ExplicitSkippedMessageQuery) Offset(offset int) *ExplicitSkippedMessageQuery {
 	esmq.offset = &offset
+	return esmq
+}
+
+// Unique configures the query builder to filter duplicate records on query.
+// By default, unique is set to true, and can be disabled using this method.
+func (esmq *ExplicitSkippedMessageQuery) Unique(unique bool) *ExplicitSkippedMessageQuery {
+	esmq.unique = &unique
 	return esmq
 }
 
@@ -255,8 +263,8 @@ func (esmq *ExplicitSkippedMessageQuery) GroupBy(field string, fields ...string)
 
 // Select allows the selection one or more fields/columns for the given query,
 // instead of selecting all fields in the entity.
-func (esmq *ExplicitSkippedMessageQuery) Select(field string, fields ...string) *ExplicitSkippedMessageSelect {
-	esmq.fields = append([]string{field}, fields...)
+func (esmq *ExplicitSkippedMessageQuery) Select(fields ...string) *ExplicitSkippedMessageSelect {
+	esmq.fields = append(esmq.fields, fields...)
 	return &ExplicitSkippedMessageSelect{ExplicitSkippedMessageQuery: esmq}
 }
 
@@ -328,6 +336,9 @@ func (esmq *ExplicitSkippedMessageQuery) querySpec() *sqlgraph.QuerySpec {
 		From:   esmq.sql,
 		Unique: true,
 	}
+	if unique := esmq.unique; unique != nil {
+		_spec.Unique = *unique
+	}
 	if fields := esmq.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, explicitskippedmessage.FieldID)
@@ -353,7 +364,7 @@ func (esmq *ExplicitSkippedMessageQuery) querySpec() *sqlgraph.QuerySpec {
 	if ps := esmq.order; len(ps) > 0 {
 		_spec.Order = func(selector *sql.Selector) {
 			for i := range ps {
-				ps[i](selector, explicitskippedmessage.ValidColumn)
+				ps[i](selector)
 			}
 		}
 	}
@@ -363,16 +374,20 @@ func (esmq *ExplicitSkippedMessageQuery) querySpec() *sqlgraph.QuerySpec {
 func (esmq *ExplicitSkippedMessageQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(esmq.driver.Dialect())
 	t1 := builder.Table(explicitskippedmessage.Table)
-	selector := builder.Select(t1.Columns(explicitskippedmessage.Columns...)...).From(t1)
+	columns := esmq.fields
+	if len(columns) == 0 {
+		columns = explicitskippedmessage.Columns
+	}
+	selector := builder.Select(t1.Columns(columns...)...).From(t1)
 	if esmq.sql != nil {
 		selector = esmq.sql
-		selector.Select(selector.Columns(explicitskippedmessage.Columns...)...)
+		selector.Select(selector.Columns(columns...)...)
 	}
 	for _, p := range esmq.predicates {
 		p(selector)
 	}
 	for _, p := range esmq.order {
-		p(selector, explicitskippedmessage.ValidColumn)
+		p(selector)
 	}
 	if offset := esmq.offset; offset != nil {
 		// limit is mandatory for offset clause. We start
@@ -634,13 +649,24 @@ func (esmgb *ExplicitSkippedMessageGroupBy) sqlScan(ctx context.Context, v inter
 }
 
 func (esmgb *ExplicitSkippedMessageGroupBy) sqlQuery() *sql.Selector {
-	selector := esmgb.sql
-	columns := make([]string, 0, len(esmgb.fields)+len(esmgb.fns))
-	columns = append(columns, esmgb.fields...)
+	selector := esmgb.sql.Select()
+	aggregation := make([]string, 0, len(esmgb.fns))
 	for _, fn := range esmgb.fns {
-		columns = append(columns, fn(selector, explicitskippedmessage.ValidColumn))
+		aggregation = append(aggregation, fn(selector))
 	}
-	return selector.Select(columns...).GroupBy(esmgb.fields...)
+	// If no columns were selected in a custom aggregation function, the default
+	// selection is the fields used for "group-by", and the aggregation functions.
+	if len(selector.SelectedColumns()) == 0 {
+		columns := make([]string, 0, len(esmgb.fields)+len(esmgb.fns))
+		for _, f := range esmgb.fields {
+			columns = append(columns, selector.C(f))
+		}
+		for _, c := range aggregation {
+			columns = append(columns, c)
+		}
+		selector.Select(columns...)
+	}
+	return selector.GroupBy(selector.Columns(esmgb.fields...)...)
 }
 
 // ExplicitSkippedMessageSelect is the builder for selecting fields of ExplicitSkippedMessage entities.
@@ -856,16 +882,10 @@ func (esms *ExplicitSkippedMessageSelect) BoolX(ctx context.Context) bool {
 
 func (esms *ExplicitSkippedMessageSelect) sqlScan(ctx context.Context, v interface{}) error {
 	rows := &sql.Rows{}
-	query, args := esms.sqlQuery().Query()
+	query, args := esms.sql.Query()
 	if err := esms.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}
 	defer rows.Close()
 	return sql.ScanSlice(rows, v)
-}
-
-func (esms *ExplicitSkippedMessageSelect) sqlQuery() sql.Querier {
-	selector := esms.sql
-	selector.Select(selector.Columns(esms.fields...)...)
-	return selector
 }

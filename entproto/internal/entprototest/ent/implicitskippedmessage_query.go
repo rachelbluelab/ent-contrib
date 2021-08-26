@@ -20,6 +20,7 @@ type ImplicitSkippedMessageQuery struct {
 	config
 	limit      *int
 	offset     *int
+	unique     *bool
 	order      []OrderFunc
 	fields     []string
 	predicates []predicate.ImplicitSkippedMessage
@@ -44,6 +45,13 @@ func (ismq *ImplicitSkippedMessageQuery) Limit(limit int) *ImplicitSkippedMessag
 // Offset adds an offset step to the query.
 func (ismq *ImplicitSkippedMessageQuery) Offset(offset int) *ImplicitSkippedMessageQuery {
 	ismq.offset = &offset
+	return ismq
+}
+
+// Unique configures the query builder to filter duplicate records on query.
+// By default, unique is set to true, and can be disabled using this method.
+func (ismq *ImplicitSkippedMessageQuery) Unique(unique bool) *ImplicitSkippedMessageQuery {
+	ismq.unique = &unique
 	return ismq
 }
 
@@ -256,8 +264,8 @@ func (ismq *ImplicitSkippedMessageQuery) GroupBy(field string, fields ...string)
 
 // Select allows the selection one or more fields/columns for the given query,
 // instead of selecting all fields in the entity.
-func (ismq *ImplicitSkippedMessageQuery) Select(field string, fields ...string) *ImplicitSkippedMessageSelect {
-	ismq.fields = append([]string{field}, fields...)
+func (ismq *ImplicitSkippedMessageQuery) Select(fields ...string) *ImplicitSkippedMessageSelect {
+	ismq.fields = append(ismq.fields, fields...)
 	return &ImplicitSkippedMessageSelect{ImplicitSkippedMessageQuery: ismq}
 }
 
@@ -333,6 +341,9 @@ func (ismq *ImplicitSkippedMessageQuery) querySpec() *sqlgraph.QuerySpec {
 		From:   ismq.sql,
 		Unique: true,
 	}
+	if unique := ismq.unique; unique != nil {
+		_spec.Unique = *unique
+	}
 	if fields := ismq.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, implicitskippedmessage.FieldID)
@@ -358,7 +369,7 @@ func (ismq *ImplicitSkippedMessageQuery) querySpec() *sqlgraph.QuerySpec {
 	if ps := ismq.order; len(ps) > 0 {
 		_spec.Order = func(selector *sql.Selector) {
 			for i := range ps {
-				ps[i](selector, implicitskippedmessage.ValidColumn)
+				ps[i](selector)
 			}
 		}
 	}
@@ -368,16 +379,20 @@ func (ismq *ImplicitSkippedMessageQuery) querySpec() *sqlgraph.QuerySpec {
 func (ismq *ImplicitSkippedMessageQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(ismq.driver.Dialect())
 	t1 := builder.Table(implicitskippedmessage.Table)
-	selector := builder.Select(t1.Columns(implicitskippedmessage.Columns...)...).From(t1)
+	columns := ismq.fields
+	if len(columns) == 0 {
+		columns = implicitskippedmessage.Columns
+	}
+	selector := builder.Select(t1.Columns(columns...)...).From(t1)
 	if ismq.sql != nil {
 		selector = ismq.sql
-		selector.Select(selector.Columns(implicitskippedmessage.Columns...)...)
+		selector.Select(selector.Columns(columns...)...)
 	}
 	for _, p := range ismq.predicates {
 		p(selector)
 	}
 	for _, p := range ismq.order {
-		p(selector, implicitskippedmessage.ValidColumn)
+		p(selector)
 	}
 	if offset := ismq.offset; offset != nil {
 		// limit is mandatory for offset clause. We start
@@ -639,13 +654,24 @@ func (ismgb *ImplicitSkippedMessageGroupBy) sqlScan(ctx context.Context, v inter
 }
 
 func (ismgb *ImplicitSkippedMessageGroupBy) sqlQuery() *sql.Selector {
-	selector := ismgb.sql
-	columns := make([]string, 0, len(ismgb.fields)+len(ismgb.fns))
-	columns = append(columns, ismgb.fields...)
+	selector := ismgb.sql.Select()
+	aggregation := make([]string, 0, len(ismgb.fns))
 	for _, fn := range ismgb.fns {
-		columns = append(columns, fn(selector, implicitskippedmessage.ValidColumn))
+		aggregation = append(aggregation, fn(selector))
 	}
-	return selector.Select(columns...).GroupBy(ismgb.fields...)
+	// If no columns were selected in a custom aggregation function, the default
+	// selection is the fields used for "group-by", and the aggregation functions.
+	if len(selector.SelectedColumns()) == 0 {
+		columns := make([]string, 0, len(ismgb.fields)+len(ismgb.fns))
+		for _, f := range ismgb.fields {
+			columns = append(columns, selector.C(f))
+		}
+		for _, c := range aggregation {
+			columns = append(columns, c)
+		}
+		selector.Select(columns...)
+	}
+	return selector.GroupBy(selector.Columns(ismgb.fields...)...)
 }
 
 // ImplicitSkippedMessageSelect is the builder for selecting fields of ImplicitSkippedMessage entities.
@@ -861,16 +887,10 @@ func (isms *ImplicitSkippedMessageSelect) BoolX(ctx context.Context) bool {
 
 func (isms *ImplicitSkippedMessageSelect) sqlScan(ctx context.Context, v interface{}) error {
 	rows := &sql.Rows{}
-	query, args := isms.sqlQuery().Query()
+	query, args := isms.sql.Query()
 	if err := isms.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}
 	defer rows.Close()
 	return sql.ScanSlice(rows, v)
-}
-
-func (isms *ImplicitSkippedMessageSelect) sqlQuery() sql.Querier {
-	selector := isms.sql
-	selector.Select(selector.Columns(isms.fields...)...)
-	return selector
 }

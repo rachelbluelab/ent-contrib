@@ -27,9 +27,11 @@ type Attachment struct {
 type AttachmentEdges struct {
 	// User holds the value of the user edge.
 	User *User `json:"user,omitempty"`
+	// Recipients holds the value of the recipients edge.
+	Recipients []*User `json:"recipients,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [1]bool
+	loadedTypes [2]bool
 }
 
 // UserOrErr returns the User value or an error if the edge
@@ -46,15 +48,24 @@ func (e AttachmentEdges) UserOrErr() (*User, error) {
 	return nil, &NotLoadedError{edge: "user"}
 }
 
+// RecipientsOrErr returns the Recipients value or an error if the edge
+// was not loaded in eager-loading.
+func (e AttachmentEdges) RecipientsOrErr() ([]*User, error) {
+	if e.loadedTypes[1] {
+		return e.Recipients, nil
+	}
+	return nil, &NotLoadedError{edge: "recipients"}
+}
+
 // scanValues returns the types for scanning values from sql.Rows.
 func (*Attachment) scanValues(columns []string) ([]interface{}, error) {
 	values := make([]interface{}, len(columns))
 	for i := range columns {
 		switch columns[i] {
 		case attachment.FieldID:
-			values[i] = &uuid.UUID{}
+			values[i] = new(uuid.UUID)
 		case attachment.ForeignKeys[0]: // user_attachment
-			values[i] = &sql.NullInt64{}
+			values[i] = new(sql.NullInt64)
 		default:
 			return nil, fmt.Errorf("unexpected column %q for type Attachment", columns[i])
 		}
@@ -91,6 +102,11 @@ func (a *Attachment) assignValues(columns []string, values []interface{}) error 
 // QueryUser queries the "user" edge of the Attachment entity.
 func (a *Attachment) QueryUser() *UserQuery {
 	return (&AttachmentClient{config: a.config}).QueryUser(a)
+}
+
+// QueryRecipients queries the "recipients" edge of the Attachment entity.
+func (a *Attachment) QueryRecipients() *UserQuery {
+	return (&AttachmentClient{config: a.config}).QueryRecipients(a)
 }
 
 // Update returns a builder for updating this Attachment.

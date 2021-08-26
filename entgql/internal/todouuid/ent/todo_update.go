@@ -20,8 +20,10 @@ import (
 	"context"
 	"fmt"
 
+	"entgo.io/contrib/entgql/internal/todouuid/ent/category"
 	"entgo.io/contrib/entgql/internal/todouuid/ent/predicate"
 	"entgo.io/contrib/entgql/internal/todouuid/ent/todo"
+	"entgo.io/contrib/entgql/internal/todouuid/ent/verysecret"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
@@ -35,9 +37,9 @@ type TodoUpdate struct {
 	mutation *TodoMutation
 }
 
-// Where adds a new predicate for the TodoUpdate builder.
+// Where appends a list predicates to the TodoUpdate builder.
 func (tu *TodoUpdate) Where(ps ...predicate.Todo) *TodoUpdate {
-	tu.mutation.predicates = append(tu.mutation.predicates, ps...)
+	tu.mutation.Where(ps...)
 	return tu
 }
 
@@ -71,6 +73,18 @@ func (tu *TodoUpdate) AddPriority(i int) *TodoUpdate {
 // SetText sets the "text" field.
 func (tu *TodoUpdate) SetText(s string) *TodoUpdate {
 	tu.mutation.SetText(s)
+	return tu
+}
+
+// SetBlob sets the "blob" field.
+func (tu *TodoUpdate) SetBlob(b []byte) *TodoUpdate {
+	tu.mutation.SetBlob(b)
+	return tu
+}
+
+// ClearBlob clears the value of the "blob" field.
+func (tu *TodoUpdate) ClearBlob() *TodoUpdate {
+	tu.mutation.ClearBlob()
 	return tu
 }
 
@@ -108,6 +122,44 @@ func (tu *TodoUpdate) AddChildren(t ...*Todo) *TodoUpdate {
 	return tu.AddChildIDs(ids...)
 }
 
+// SetCategoryID sets the "category" edge to the Category entity by ID.
+func (tu *TodoUpdate) SetCategoryID(id uuid.UUID) *TodoUpdate {
+	tu.mutation.SetCategoryID(id)
+	return tu
+}
+
+// SetNillableCategoryID sets the "category" edge to the Category entity by ID if the given value is not nil.
+func (tu *TodoUpdate) SetNillableCategoryID(id *uuid.UUID) *TodoUpdate {
+	if id != nil {
+		tu = tu.SetCategoryID(*id)
+	}
+	return tu
+}
+
+// SetCategory sets the "category" edge to the Category entity.
+func (tu *TodoUpdate) SetCategory(c *Category) *TodoUpdate {
+	return tu.SetCategoryID(c.ID)
+}
+
+// SetSecretID sets the "secret" edge to the VerySecret entity by ID.
+func (tu *TodoUpdate) SetSecretID(id uuid.UUID) *TodoUpdate {
+	tu.mutation.SetSecretID(id)
+	return tu
+}
+
+// SetNillableSecretID sets the "secret" edge to the VerySecret entity by ID if the given value is not nil.
+func (tu *TodoUpdate) SetNillableSecretID(id *uuid.UUID) *TodoUpdate {
+	if id != nil {
+		tu = tu.SetSecretID(*id)
+	}
+	return tu
+}
+
+// SetSecret sets the "secret" edge to the VerySecret entity.
+func (tu *TodoUpdate) SetSecret(v *VerySecret) *TodoUpdate {
+	return tu.SetSecretID(v.ID)
+}
+
 // Mutation returns the TodoMutation object of the builder.
 func (tu *TodoUpdate) Mutation() *TodoMutation {
 	return tu.mutation
@@ -140,6 +192,18 @@ func (tu *TodoUpdate) RemoveChildren(t ...*Todo) *TodoUpdate {
 	return tu.RemoveChildIDs(ids...)
 }
 
+// ClearCategory clears the "category" edge to the Category entity.
+func (tu *TodoUpdate) ClearCategory() *TodoUpdate {
+	tu.mutation.ClearCategory()
+	return tu
+}
+
+// ClearSecret clears the "secret" edge to the VerySecret entity.
+func (tu *TodoUpdate) ClearSecret() *TodoUpdate {
+	tu.mutation.ClearSecret()
+	return tu
+}
+
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (tu *TodoUpdate) Save(ctx context.Context) (int, error) {
 	var (
@@ -166,6 +230,9 @@ func (tu *TodoUpdate) Save(ctx context.Context) (int, error) {
 			return affected, err
 		})
 		for i := len(tu.hooks) - 1; i >= 0; i-- {
+			if tu.hooks[i] == nil {
+				return 0, fmt.Errorf("ent: uninitialized hook (forgotten import ent/runtime?)")
+			}
 			mut = tu.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, tu.mutation); err != nil {
@@ -258,6 +325,19 @@ func (tu *TodoUpdate) sqlSave(ctx context.Context) (n int, err error) {
 			Column: todo.FieldText,
 		})
 	}
+	if value, ok := tu.mutation.Blob(); ok {
+		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
+			Type:   field.TypeBytes,
+			Value:  value,
+			Column: todo.FieldBlob,
+		})
+	}
+	if tu.mutation.BlobCleared() {
+		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
+			Type:   field.TypeBytes,
+			Column: todo.FieldBlob,
+		})
+	}
 	if tu.mutation.ParentCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2O,
@@ -347,11 +427,81 @@ func (tu *TodoUpdate) sqlSave(ctx context.Context) (n int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if tu.mutation.CategoryCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   todo.CategoryTable,
+			Columns: []string{todo.CategoryColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeUUID,
+					Column: category.FieldID,
+				},
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := tu.mutation.CategoryIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   todo.CategoryTable,
+			Columns: []string{todo.CategoryColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeUUID,
+					Column: category.FieldID,
+				},
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if tu.mutation.SecretCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   todo.SecretTable,
+			Columns: []string{todo.SecretColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeUUID,
+					Column: verysecret.FieldID,
+				},
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := tu.mutation.SecretIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   todo.SecretTable,
+			Columns: []string{todo.SecretColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeUUID,
+					Column: verysecret.FieldID,
+				},
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if n, err = sqlgraph.UpdateNodes(ctx, tu.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{todo.Label}
-		} else if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		} else if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return 0, err
 	}
@@ -361,6 +511,7 @@ func (tu *TodoUpdate) sqlSave(ctx context.Context) (n int, err error) {
 // TodoUpdateOne is the builder for updating a single Todo entity.
 type TodoUpdateOne struct {
 	config
+	fields   []string
 	hooks    []Hook
 	mutation *TodoMutation
 }
@@ -398,6 +549,18 @@ func (tuo *TodoUpdateOne) SetText(s string) *TodoUpdateOne {
 	return tuo
 }
 
+// SetBlob sets the "blob" field.
+func (tuo *TodoUpdateOne) SetBlob(b []byte) *TodoUpdateOne {
+	tuo.mutation.SetBlob(b)
+	return tuo
+}
+
+// ClearBlob clears the value of the "blob" field.
+func (tuo *TodoUpdateOne) ClearBlob() *TodoUpdateOne {
+	tuo.mutation.ClearBlob()
+	return tuo
+}
+
 // SetParentID sets the "parent" edge to the Todo entity by ID.
 func (tuo *TodoUpdateOne) SetParentID(id uuid.UUID) *TodoUpdateOne {
 	tuo.mutation.SetParentID(id)
@@ -432,6 +595,44 @@ func (tuo *TodoUpdateOne) AddChildren(t ...*Todo) *TodoUpdateOne {
 	return tuo.AddChildIDs(ids...)
 }
 
+// SetCategoryID sets the "category" edge to the Category entity by ID.
+func (tuo *TodoUpdateOne) SetCategoryID(id uuid.UUID) *TodoUpdateOne {
+	tuo.mutation.SetCategoryID(id)
+	return tuo
+}
+
+// SetNillableCategoryID sets the "category" edge to the Category entity by ID if the given value is not nil.
+func (tuo *TodoUpdateOne) SetNillableCategoryID(id *uuid.UUID) *TodoUpdateOne {
+	if id != nil {
+		tuo = tuo.SetCategoryID(*id)
+	}
+	return tuo
+}
+
+// SetCategory sets the "category" edge to the Category entity.
+func (tuo *TodoUpdateOne) SetCategory(c *Category) *TodoUpdateOne {
+	return tuo.SetCategoryID(c.ID)
+}
+
+// SetSecretID sets the "secret" edge to the VerySecret entity by ID.
+func (tuo *TodoUpdateOne) SetSecretID(id uuid.UUID) *TodoUpdateOne {
+	tuo.mutation.SetSecretID(id)
+	return tuo
+}
+
+// SetNillableSecretID sets the "secret" edge to the VerySecret entity by ID if the given value is not nil.
+func (tuo *TodoUpdateOne) SetNillableSecretID(id *uuid.UUID) *TodoUpdateOne {
+	if id != nil {
+		tuo = tuo.SetSecretID(*id)
+	}
+	return tuo
+}
+
+// SetSecret sets the "secret" edge to the VerySecret entity.
+func (tuo *TodoUpdateOne) SetSecret(v *VerySecret) *TodoUpdateOne {
+	return tuo.SetSecretID(v.ID)
+}
+
 // Mutation returns the TodoMutation object of the builder.
 func (tuo *TodoUpdateOne) Mutation() *TodoMutation {
 	return tuo.mutation
@@ -464,6 +665,25 @@ func (tuo *TodoUpdateOne) RemoveChildren(t ...*Todo) *TodoUpdateOne {
 	return tuo.RemoveChildIDs(ids...)
 }
 
+// ClearCategory clears the "category" edge to the Category entity.
+func (tuo *TodoUpdateOne) ClearCategory() *TodoUpdateOne {
+	tuo.mutation.ClearCategory()
+	return tuo
+}
+
+// ClearSecret clears the "secret" edge to the VerySecret entity.
+func (tuo *TodoUpdateOne) ClearSecret() *TodoUpdateOne {
+	tuo.mutation.ClearSecret()
+	return tuo
+}
+
+// Select allows selecting one or more fields (columns) of the returned entity.
+// The default is selecting all fields defined in the entity schema.
+func (tuo *TodoUpdateOne) Select(field string, fields ...string) *TodoUpdateOne {
+	tuo.fields = append([]string{field}, fields...)
+	return tuo
+}
+
 // Save executes the query and returns the updated Todo entity.
 func (tuo *TodoUpdateOne) Save(ctx context.Context) (*Todo, error) {
 	var (
@@ -490,6 +710,9 @@ func (tuo *TodoUpdateOne) Save(ctx context.Context) (*Todo, error) {
 			return node, err
 		})
 		for i := len(tuo.hooks) - 1; i >= 0; i-- {
+			if tuo.hooks[i] == nil {
+				return nil, fmt.Errorf("ent: uninitialized hook (forgotten import ent/runtime?)")
+			}
 			mut = tuo.hooks[i](mut)
 		}
 		if _, err := mut.Mutate(ctx, tuo.mutation); err != nil {
@@ -552,6 +775,18 @@ func (tuo *TodoUpdateOne) sqlSave(ctx context.Context) (_node *Todo, err error) 
 		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing Todo.ID for update")}
 	}
 	_spec.Node.ID.Value = id
+	if fields := tuo.fields; len(fields) > 0 {
+		_spec.Node.Columns = make([]string, 0, len(fields))
+		_spec.Node.Columns = append(_spec.Node.Columns, todo.FieldID)
+		for _, f := range fields {
+			if !todo.ValidColumn(f) {
+				return nil, &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
+			}
+			if f != todo.FieldID {
+				_spec.Node.Columns = append(_spec.Node.Columns, f)
+			}
+		}
+	}
 	if ps := tuo.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
@@ -585,6 +820,19 @@ func (tuo *TodoUpdateOne) sqlSave(ctx context.Context) (_node *Todo, err error) 
 			Type:   field.TypeString,
 			Value:  value,
 			Column: todo.FieldText,
+		})
+	}
+	if value, ok := tuo.mutation.Blob(); ok {
+		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
+			Type:   field.TypeBytes,
+			Value:  value,
+			Column: todo.FieldBlob,
+		})
+	}
+	if tuo.mutation.BlobCleared() {
+		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
+			Type:   field.TypeBytes,
+			Column: todo.FieldBlob,
 		})
 	}
 	if tuo.mutation.ParentCleared() {
@@ -676,14 +924,84 @@ func (tuo *TodoUpdateOne) sqlSave(ctx context.Context) (_node *Todo, err error) 
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if tuo.mutation.CategoryCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   todo.CategoryTable,
+			Columns: []string{todo.CategoryColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeUUID,
+					Column: category.FieldID,
+				},
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := tuo.mutation.CategoryIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   todo.CategoryTable,
+			Columns: []string{todo.CategoryColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeUUID,
+					Column: category.FieldID,
+				},
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if tuo.mutation.SecretCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   todo.SecretTable,
+			Columns: []string{todo.SecretColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeUUID,
+					Column: verysecret.FieldID,
+				},
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := tuo.mutation.SecretIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   todo.SecretTable,
+			Columns: []string{todo.SecretColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeUUID,
+					Column: verysecret.FieldID,
+				},
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	_node = &Todo{config: tuo.config}
 	_spec.Assign = _node.assignValues
 	_spec.ScanValues = _node.scanValues
 	if err = sqlgraph.UpdateNode(ctx, tuo.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{todo.Label}
-		} else if cerr, ok := isSQLConstraintError(err); ok {
-			err = cerr
+		} else if sqlgraph.IsConstraintError(err) {
+			err = &ConstraintError{err.Error(), err}
 		}
 		return nil, err
 	}

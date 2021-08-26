@@ -22,6 +22,20 @@ import (
 )
 
 var (
+	// CategoriesColumns holds the columns for the "categories" table.
+	CategoriesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "text", Type: field.TypeString, Size: 2147483647},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"ENABLED", "DISABLED"}},
+		{Name: "config", Type: field.TypeOther, Nullable: true, SchemaType: map[string]string{"sqlite3": "json"}},
+		{Name: "duration", Type: field.TypeInt64, Nullable: true},
+	}
+	// CategoriesTable holds the schema information for the "categories" table.
+	CategoriesTable = &schema.Table{
+		Name:       "categories",
+		Columns:    CategoriesColumns,
+		PrimaryKey: []*schema.Column{CategoriesColumns[0]},
+	}
 	// TodosColumns holds the columns for the "todos" table.
 	TodosColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
@@ -29,7 +43,10 @@ var (
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"IN_PROGRESS", "COMPLETED"}},
 		{Name: "priority", Type: field.TypeInt, Default: 0},
 		{Name: "text", Type: field.TypeString, Size: 2147483647},
+		{Name: "blob", Type: field.TypeBytes, Nullable: true},
+		{Name: "category_todos", Type: field.TypeUUID, Nullable: true},
 		{Name: "todo_children", Type: field.TypeUUID, Nullable: true},
+		{Name: "todo_secret", Type: field.TypeUUID, Nullable: true},
 	}
 	// TodosTable holds the schema information for the "todos" table.
 	TodosTable = &schema.Table{
@@ -38,19 +55,46 @@ var (
 		PrimaryKey: []*schema.Column{TodosColumns[0]},
 		ForeignKeys: []*schema.ForeignKey{
 			{
+				Symbol:     "todos_categories_todos",
+				Columns:    []*schema.Column{TodosColumns[6]},
+				RefColumns: []*schema.Column{CategoriesColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+			{
 				Symbol:     "todos_todos_children",
-				Columns:    []*schema.Column{TodosColumns[5]},
+				Columns:    []*schema.Column{TodosColumns[7]},
 				RefColumns: []*schema.Column{TodosColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+			{
+				Symbol:     "todos_very_secrets_secret",
+				Columns:    []*schema.Column{TodosColumns[8]},
+				RefColumns: []*schema.Column{VerySecretsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 		},
 	}
+	// VerySecretsColumns holds the columns for the "very_secrets" table.
+	VerySecretsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "password", Type: field.TypeString},
+	}
+	// VerySecretsTable holds the schema information for the "very_secrets" table.
+	VerySecretsTable = &schema.Table{
+		Name:       "very_secrets",
+		Columns:    VerySecretsColumns,
+		PrimaryKey: []*schema.Column{VerySecretsColumns[0]},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		CategoriesTable,
 		TodosTable,
+		VerySecretsTable,
 	}
 )
 
 func init() {
-	TodosTable.ForeignKeys[0].RefTable = TodosTable
+	TodosTable.ForeignKeys[0].RefTable = CategoriesTable
+	TodosTable.ForeignKeys[1].RefTable = TodosTable
+	TodosTable.ForeignKeys[2].RefTable = VerySecretsTable
 }

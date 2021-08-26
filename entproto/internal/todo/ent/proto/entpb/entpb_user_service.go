@@ -4,9 +4,14 @@ package entpb
 import (
 	context "context"
 	ent "entgo.io/contrib/entproto/internal/todo/ent"
+	attachment "entgo.io/contrib/entproto/internal/todo/ent/attachment"
+	group "entgo.io/contrib/entproto/internal/todo/ent/group"
+	schema "entgo.io/contrib/entproto/internal/todo/ent/schema"
 	user "entgo.io/contrib/entproto/internal/todo/ent/user"
 	runtime "entgo.io/contrib/entproto/runtime"
 	sqlgraph "entgo.io/ent/dialect/sql/sqlgraph"
+	errors "errors"
+	uuid "github.com/google/uuid"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
@@ -43,121 +48,268 @@ func toEntUser_Status(e User_Status) user.Status {
 }
 
 // toProtoUser transforms the ent type to the pb type
-func toProtoUser(e *ent.User) *User {
-	return &User{
-		Banned:     e.Banned,
-		CrmId:      runtime.MustExtractUUIDBytes(e.CrmID),
-		CustomPb:   uint64(e.CustomPb),
-		Exp:        e.Exp,
-		ExternalId: int32(e.ExternalID),
-		Id:         int32(e.ID),
-		Joined:     timestamppb.New(e.Joined),
-		OptBool:    wrapperspb.String(e.OptBool),
-		OptNum:     wrapperspb.Int32(int32(e.OptNum)),
-		OptStr:     wrapperspb.String(e.OptStr),
-		Points:     uint32(e.Points),
-		Status:     toProtoUser_Status(e.Status),
-		UserName:   e.UserName,
+func toProtoUser(e *ent.User) (*User, error) {
+	v := &User{}
+	banned := e.Banned
+	v.Banned = banned
+	bigintValue, err := e.BigInt.Value()
+	if err != nil {
+		return nil, err
 	}
-}
-
-// validateUser validates that all fields are encoded properly and are safe to pass
-// to the ent entity builder.
-func validateUser(x *User, checkId bool) error {
-	if err := runtime.ValidateUUID(x.GetCrmId()); err != nil {
-		return err
+	bigintTyped, ok := bigintValue.(string)
+	if !ok {
+		return nil, errors.New("casting value to string")
 	}
-	if err := runtime.ValidateUUID(x.GetAttachment().GetId()); err != nil {
-		return err
+	bigint := wrapperspb.String(bigintTyped)
+	v.BigInt = bigint
+	crmid, err := e.CrmID.MarshalBinary()
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	v.CrmId = crmid
+	custompb := uint64(e.CustomPb)
+	v.CustomPb = custompb
+	exp := e.Exp
+	v.Exp = exp
+	externalid := int32(e.ExternalID)
+	v.ExternalId = externalid
+	id := int32(e.ID)
+	v.Id = id
+	joined := timestamppb.New(e.Joined)
+	v.Joined = joined
+	optbool := wrapperspb.Bool(e.OptBool)
+	v.OptBool = optbool
+	optnum := wrapperspb.Int32(int32(e.OptNum))
+	v.OptNum = optnum
+	optstr := wrapperspb.String(e.OptStr)
+	v.OptStr = optstr
+	points := uint32(e.Points)
+	v.Points = points
+	status := toProtoUser_Status(e.Status)
+	v.Status = status
+	username := e.UserName
+	v.UserName = username
+	if edg := e.Edges.Attachment; edg != nil {
+		id, err := edg.ID.MarshalBinary()
+		if err != nil {
+			return nil, err
+		}
+		v.Attachment = &Attachment{
+			Id: id,
+		}
+	}
+	if edg := e.Edges.Group; edg != nil {
+		id := int32(edg.ID)
+		v.Group = &Group{
+			Id: id,
+		}
+	}
+	for _, edg := range e.Edges.Received {
+		id, err := edg.ID.MarshalBinary()
+		if err != nil {
+			return nil, err
+		}
+		v.Received = append(v.Received, &Attachment{
+			Id: id,
+		})
+	}
+	return v, nil
 }
 
 // Create implements UserServiceServer.Create
 func (svc *UserService) Create(ctx context.Context, req *CreateUserRequest) (*User, error) {
 	user := req.GetUser()
-	if err := validateUser(user, true); err != nil {
+	m := svc.client.User.Create()
+	userBanned := user.GetBanned()
+	m.SetBanned(userBanned)
+	if user.GetBigInt() != nil {
+		userBigInt := schema.BigInt{}
+		if err := (&userBigInt).Scan(user.GetBigInt().GetValue()); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
+		}
+		m.SetBigInt(userBigInt)
+	}
+	var userCrmID uuid.UUID
+	if err := (&userCrmID).UnmarshalBinary(user.GetCrmId()); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
 	}
-	res, err := svc.client.User.Create().
-		SetBanned(user.GetBanned()).
-		SetCrmID(runtime.MustBytesToUUID(user.GetCrmId())).
-		SetCustomPb(uint8(user.GetCustomPb())).
-		SetExp(uint64(user.GetExp())).
-		SetExternalID(int(user.GetExternalId())).
-		SetJoined(runtime.ExtractTime(user.GetJoined())).
-		SetOptBool(user.GetOptBool().GetValue()).
-		SetOptNum(int(user.GetOptNum().GetValue())).
-		SetOptStr(user.GetOptStr().GetValue()).
-		SetPoints(uint(user.GetPoints())).
-		SetStatus(toEntUser_Status(user.GetStatus())).
-		SetUserName(user.GetUserName()).
-		SetAttachmentID(runtime.MustBytesToUUID(user.GetAttachment().GetId())).
-		SetGroupID(int(user.GetGroup().GetId())).
-		Save(ctx)
-
+	m.SetCrmID(userCrmID)
+	userCustomPb := uint8(user.GetCustomPb())
+	m.SetCustomPb(userCustomPb)
+	userExp := uint64(user.GetExp())
+	m.SetExp(userExp)
+	userExternalID := int(user.GetExternalId())
+	m.SetExternalID(userExternalID)
+	userJoined := runtime.ExtractTime(user.GetJoined())
+	m.SetJoined(userJoined)
+	if user.GetOptBool() != nil {
+		userOptBool := user.GetOptBool().GetValue()
+		m.SetOptBool(userOptBool)
+	}
+	if user.GetOptNum() != nil {
+		userOptNum := int(user.GetOptNum().GetValue())
+		m.SetOptNum(userOptNum)
+	}
+	if user.GetOptStr() != nil {
+		userOptStr := user.GetOptStr().GetValue()
+		m.SetOptStr(userOptStr)
+	}
+	userPoints := uint(user.GetPoints())
+	m.SetPoints(userPoints)
+	userStatus := toEntUser_Status(user.GetStatus())
+	m.SetStatus(userStatus)
+	userUserName := user.GetUserName()
+	m.SetUserName(userUserName)
+	var userAttachment uuid.UUID
+	if err := (&userAttachment).UnmarshalBinary(user.GetAttachment().GetId()); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
+	}
+	m.SetAttachmentID(userAttachment)
+	userGroup := int(user.GetGroup().GetId())
+	m.SetGroupID(userGroup)
+	for _, item := range user.GetReceived() {
+		var received uuid.UUID
+		if err := (&received).UnmarshalBinary(item.GetId()); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
+		}
+		m.AddReceivedIDs(received)
+	}
+	res, err := m.Save(ctx)
 	switch {
 	case err == nil:
-		return toProtoUser(res), nil
+		proto, err := toProtoUser(res)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "internal error: %s", err)
+		}
+		return proto, nil
 	case sqlgraph.IsUniqueConstraintError(err):
 		return nil, status.Errorf(codes.AlreadyExists, "already exists: %s", err)
 	case ent.IsConstraintError(err):
 		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
 	default:
-		return nil, status.Errorf(codes.Internal, "internal: %s", err)
+		return nil, status.Errorf(codes.Internal, "internal error: %s", err)
 	}
+
 }
 
 // Get implements UserServiceServer.Get
 func (svc *UserService) Get(ctx context.Context, req *GetUserRequest) (*User, error) {
-	get, err := svc.client.User.Get(ctx, int(req.GetId()))
+	var (
+		err error
+		get *ent.User
+	)
+	id := int(req.GetId())
+	switch req.GetView() {
+	case GetUserRequest_VIEW_UNSPECIFIED, GetUserRequest_BASIC:
+		get, err = svc.client.User.Get(ctx, id)
+	case GetUserRequest_WITH_EDGE_IDS:
+		get, err = svc.client.User.Query().
+			Where(user.ID(id)).
+			WithAttachment(func(query *ent.AttachmentQuery) {
+				query.Select(attachment.FieldID)
+			}).
+			WithGroup(func(query *ent.GroupQuery) {
+				query.Select(group.FieldID)
+			}).
+			WithReceived(func(query *ent.AttachmentQuery) {
+				query.Select(attachment.FieldID)
+			}).
+			Only(ctx)
+	default:
+		return nil, status.Error(codes.InvalidArgument, "invalid argument: unknown view")
+	}
 	switch {
 	case err == nil:
-		return toProtoUser(get), nil
+		return toProtoUser(get)
 	case ent.IsNotFound(err):
 		return nil, status.Errorf(codes.NotFound, "not found: %s", err)
 	default:
 		return nil, status.Errorf(codes.Internal, "internal error: %s", err)
 	}
+	return nil, nil
+
 }
 
 // Update implements UserServiceServer.Update
 func (svc *UserService) Update(ctx context.Context, req *UpdateUserRequest) (*User, error) {
 	user := req.GetUser()
-	if err := validateUser(user, false); err != nil {
+	userID := int(user.GetId())
+	m := svc.client.User.UpdateOneID(userID)
+	userBanned := user.GetBanned()
+	m.SetBanned(userBanned)
+	if user.GetBigInt() != nil {
+		userBigInt := schema.BigInt{}
+		if err := (&userBigInt).Scan(user.GetBigInt().GetValue()); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
+		}
+		m.SetBigInt(userBigInt)
+	}
+	var userCrmID uuid.UUID
+	if err := (&userCrmID).UnmarshalBinary(user.GetCrmId()); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
 	}
-	res, err := svc.client.User.UpdateOneID(int(user.GetId())).
-		SetBanned(user.GetBanned()).
-		SetCrmID(runtime.MustBytesToUUID(user.GetCrmId())).
-		SetCustomPb(uint8(user.GetCustomPb())).
-		SetExp(uint64(user.GetExp())).
-		SetExternalID(int(user.GetExternalId())).
-		SetOptBool(user.GetOptBool().GetValue()).
-		SetOptNum(int(user.GetOptNum().GetValue())).
-		SetOptStr(user.GetOptStr().GetValue()).
-		SetPoints(uint(user.GetPoints())).
-		SetStatus(toEntUser_Status(user.GetStatus())).
-		SetUserName(user.GetUserName()).
-		SetAttachmentID(runtime.MustBytesToUUID(user.GetAttachment().GetId())).
-		SetGroupID(int(user.GetGroup().GetId())).
-		Save(ctx)
-
+	m.SetCrmID(userCrmID)
+	userCustomPb := uint8(user.GetCustomPb())
+	m.SetCustomPb(userCustomPb)
+	userExp := uint64(user.GetExp())
+	m.SetExp(userExp)
+	userExternalID := int(user.GetExternalId())
+	m.SetExternalID(userExternalID)
+	if user.GetOptBool() != nil {
+		userOptBool := user.GetOptBool().GetValue()
+		m.SetOptBool(userOptBool)
+	}
+	if user.GetOptNum() != nil {
+		userOptNum := int(user.GetOptNum().GetValue())
+		m.SetOptNum(userOptNum)
+	}
+	if user.GetOptStr() != nil {
+		userOptStr := user.GetOptStr().GetValue()
+		m.SetOptStr(userOptStr)
+	}
+	userPoints := uint(user.GetPoints())
+	m.SetPoints(userPoints)
+	userStatus := toEntUser_Status(user.GetStatus())
+	m.SetStatus(userStatus)
+	userUserName := user.GetUserName()
+	m.SetUserName(userUserName)
+	var userAttachment uuid.UUID
+	if err := (&userAttachment).UnmarshalBinary(user.GetAttachment().GetId()); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
+	}
+	m.SetAttachmentID(userAttachment)
+	userGroup := int(user.GetGroup().GetId())
+	m.SetGroupID(userGroup)
+	for _, item := range user.GetReceived() {
+		var received uuid.UUID
+		if err := (&received).UnmarshalBinary(item.GetId()); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
+		}
+		m.AddReceivedIDs(received)
+	}
+	res, err := m.Save(ctx)
 	switch {
 	case err == nil:
-		return toProtoUser(res), nil
+		proto, err := toProtoUser(res)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "internal error: %s", err)
+		}
+		return proto, nil
 	case sqlgraph.IsUniqueConstraintError(err):
 		return nil, status.Errorf(codes.AlreadyExists, "already exists: %s", err)
 	case ent.IsConstraintError(err):
 		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
 	default:
-		return nil, status.Errorf(codes.Internal, "internal: %s", err)
+		return nil, status.Errorf(codes.Internal, "internal error: %s", err)
 	}
+
 }
 
 // Delete implements UserServiceServer.Delete
 func (svc *UserService) Delete(ctx context.Context, req *DeleteUserRequest) (*emptypb.Empty, error) {
-	err := svc.client.User.DeleteOneID(int(req.GetId())).Exec(ctx)
+	var err error
+	id := int(req.GetId())
+	err = svc.client.User.DeleteOneID(id).Exec(ctx)
 	switch {
 	case err == nil:
 		return &emptypb.Empty{}, nil
@@ -166,4 +318,5 @@ func (svc *UserService) Delete(ctx context.Context, req *DeleteUserRequest) (*em
 	default:
 		return nil, status.Errorf(codes.Internal, "internal error: %s", err)
 	}
+
 }

@@ -20,6 +20,7 @@ type MessageWithFieldOneQuery struct {
 	config
 	limit      *int
 	offset     *int
+	unique     *bool
 	order      []OrderFunc
 	fields     []string
 	predicates []predicate.MessageWithFieldOne
@@ -43,6 +44,13 @@ func (mwfoq *MessageWithFieldOneQuery) Limit(limit int) *MessageWithFieldOneQuer
 // Offset adds an offset step to the query.
 func (mwfoq *MessageWithFieldOneQuery) Offset(offset int) *MessageWithFieldOneQuery {
 	mwfoq.offset = &offset
+	return mwfoq
+}
+
+// Unique configures the query builder to filter duplicate records on query.
+// By default, unique is set to true, and can be disabled using this method.
+func (mwfoq *MessageWithFieldOneQuery) Unique(unique bool) *MessageWithFieldOneQuery {
+	mwfoq.unique = &unique
 	return mwfoq
 }
 
@@ -279,8 +287,8 @@ func (mwfoq *MessageWithFieldOneQuery) GroupBy(field string, fields ...string) *
 //		Select(messagewithfieldone.FieldFieldOne).
 //		Scan(ctx, &v)
 //
-func (mwfoq *MessageWithFieldOneQuery) Select(field string, fields ...string) *MessageWithFieldOneSelect {
-	mwfoq.fields = append([]string{field}, fields...)
+func (mwfoq *MessageWithFieldOneQuery) Select(fields ...string) *MessageWithFieldOneSelect {
+	mwfoq.fields = append(mwfoq.fields, fields...)
 	return &MessageWithFieldOneSelect{MessageWithFieldOneQuery: mwfoq}
 }
 
@@ -352,6 +360,9 @@ func (mwfoq *MessageWithFieldOneQuery) querySpec() *sqlgraph.QuerySpec {
 		From:   mwfoq.sql,
 		Unique: true,
 	}
+	if unique := mwfoq.unique; unique != nil {
+		_spec.Unique = *unique
+	}
 	if fields := mwfoq.fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
 		_spec.Node.Columns = append(_spec.Node.Columns, messagewithfieldone.FieldID)
@@ -377,7 +388,7 @@ func (mwfoq *MessageWithFieldOneQuery) querySpec() *sqlgraph.QuerySpec {
 	if ps := mwfoq.order; len(ps) > 0 {
 		_spec.Order = func(selector *sql.Selector) {
 			for i := range ps {
-				ps[i](selector, messagewithfieldone.ValidColumn)
+				ps[i](selector)
 			}
 		}
 	}
@@ -387,16 +398,20 @@ func (mwfoq *MessageWithFieldOneQuery) querySpec() *sqlgraph.QuerySpec {
 func (mwfoq *MessageWithFieldOneQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(mwfoq.driver.Dialect())
 	t1 := builder.Table(messagewithfieldone.Table)
-	selector := builder.Select(t1.Columns(messagewithfieldone.Columns...)...).From(t1)
+	columns := mwfoq.fields
+	if len(columns) == 0 {
+		columns = messagewithfieldone.Columns
+	}
+	selector := builder.Select(t1.Columns(columns...)...).From(t1)
 	if mwfoq.sql != nil {
 		selector = mwfoq.sql
-		selector.Select(selector.Columns(messagewithfieldone.Columns...)...)
+		selector.Select(selector.Columns(columns...)...)
 	}
 	for _, p := range mwfoq.predicates {
 		p(selector)
 	}
 	for _, p := range mwfoq.order {
-		p(selector, messagewithfieldone.ValidColumn)
+		p(selector)
 	}
 	if offset := mwfoq.offset; offset != nil {
 		// limit is mandatory for offset clause. We start
@@ -658,13 +673,24 @@ func (mwfogb *MessageWithFieldOneGroupBy) sqlScan(ctx context.Context, v interfa
 }
 
 func (mwfogb *MessageWithFieldOneGroupBy) sqlQuery() *sql.Selector {
-	selector := mwfogb.sql
-	columns := make([]string, 0, len(mwfogb.fields)+len(mwfogb.fns))
-	columns = append(columns, mwfogb.fields...)
+	selector := mwfogb.sql.Select()
+	aggregation := make([]string, 0, len(mwfogb.fns))
 	for _, fn := range mwfogb.fns {
-		columns = append(columns, fn(selector, messagewithfieldone.ValidColumn))
+		aggregation = append(aggregation, fn(selector))
 	}
-	return selector.Select(columns...).GroupBy(mwfogb.fields...)
+	// If no columns were selected in a custom aggregation function, the default
+	// selection is the fields used for "group-by", and the aggregation functions.
+	if len(selector.SelectedColumns()) == 0 {
+		columns := make([]string, 0, len(mwfogb.fields)+len(mwfogb.fns))
+		for _, f := range mwfogb.fields {
+			columns = append(columns, selector.C(f))
+		}
+		for _, c := range aggregation {
+			columns = append(columns, c)
+		}
+		selector.Select(columns...)
+	}
+	return selector.GroupBy(selector.Columns(mwfogb.fields...)...)
 }
 
 // MessageWithFieldOneSelect is the builder for selecting fields of MessageWithFieldOne entities.
@@ -880,16 +906,10 @@ func (mwfos *MessageWithFieldOneSelect) BoolX(ctx context.Context) bool {
 
 func (mwfos *MessageWithFieldOneSelect) sqlScan(ctx context.Context, v interface{}) error {
 	rows := &sql.Rows{}
-	query, args := mwfos.sqlQuery().Query()
+	query, args := mwfos.sql.Query()
 	if err := mwfos.driver.Query(ctx, query, args, rows); err != nil {
 		return err
 	}
 	defer rows.Close()
 	return sql.ScanSlice(rows, v)
-}
-
-func (mwfos *MessageWithFieldOneSelect) sqlQuery() sql.Querier {
-	selector := mwfos.sql
-	selector.Select(selector.Columns(mwfos.fields...)...)
-	return selector
 }
