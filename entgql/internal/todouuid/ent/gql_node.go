@@ -60,7 +60,7 @@ func (c *Category) Node(ctx context.Context) (node *Node, err error) {
 	node = &Node{
 		ID:     c.ID,
 		Type:   "Category",
-		Fields: make([]*Field, 4),
+		Fields: make([]*Field, 5),
 		Edges:  make([]*Edge, 1),
 	}
 	var buf []byte
@@ -94,6 +94,14 @@ func (c *Category) Node(ctx context.Context) (node *Node, err error) {
 	node.Fields[3] = &Field{
 		Type:  "time.Duration",
 		Name:  "duration",
+		Value: string(buf),
+	}
+	if buf, err = json.Marshal(c.Count); err != nil {
+		return nil, err
+	}
+	node.Fields[4] = &Field{
+		Type:  "uint64",
+		Name:  "count",
 		Value: string(buf),
 	}
 	node.Edges[0] = &Edge{
@@ -260,6 +268,7 @@ func (c *Client) noder(ctx context.Context, table string, id uuid.UUID) (Noder, 
 	case category.Table:
 		n, err := c.Category.Query().
 			Where(category.ID(id)).
+			CollectFields(ctx, "Category").
 			Only(ctx)
 		if err != nil {
 			return nil, err
@@ -268,6 +277,7 @@ func (c *Client) noder(ctx context.Context, table string, id uuid.UUID) (Noder, 
 	case todo.Table:
 		n, err := c.Todo.Query().
 			Where(todo.ID(id)).
+			CollectFields(ctx, "Todo").
 			Only(ctx)
 		if err != nil {
 			return nil, err
@@ -349,6 +359,7 @@ func (c *Client) noders(ctx context.Context, table string, ids []uuid.UUID) ([]N
 	case category.Table:
 		nodes, err := c.Category.Query().
 			Where(category.IDIn(ids...)).
+			CollectFields(ctx, "Category").
 			All(ctx)
 		if err != nil {
 			return nil, err
@@ -361,6 +372,7 @@ func (c *Client) noders(ctx context.Context, table string, ids []uuid.UUID) ([]N
 	case todo.Table:
 		nodes, err := c.Todo.Query().
 			Where(todo.IDIn(ids...)).
+			CollectFields(ctx, "Todo").
 			All(ctx)
 		if err != nil {
 			return nil, err

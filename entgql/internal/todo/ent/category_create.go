@@ -68,6 +68,20 @@ func (cc *CategoryCreate) SetNillableDuration(t *time.Duration) *CategoryCreate 
 	return cc
 }
 
+// SetCount sets the "count" field.
+func (cc *CategoryCreate) SetCount(u uint64) *CategoryCreate {
+	cc.mutation.SetCount(u)
+	return cc
+}
+
+// SetNillableCount sets the "count" field if the given value is not nil.
+func (cc *CategoryCreate) SetNillableCount(u *uint64) *CategoryCreate {
+	if u != nil {
+		cc.SetCount(*u)
+	}
+	return cc
+}
+
 // AddTodoIDs adds the "todos" edge to the Todo entity by IDs.
 func (cc *CategoryCreate) AddTodoIDs(ids ...int) *CategoryCreate {
 	cc.mutation.AddTodoIDs(ids...)
@@ -154,19 +168,19 @@ func (cc *CategoryCreate) ExecX(ctx context.Context) {
 // check runs all checks and user-defined validators on the builder.
 func (cc *CategoryCreate) check() error {
 	if _, ok := cc.mutation.Text(); !ok {
-		return &ValidationError{Name: "text", err: errors.New(`ent: missing required field "text"`)}
+		return &ValidationError{Name: "text", err: errors.New(`ent: missing required field "Category.text"`)}
 	}
 	if v, ok := cc.mutation.Text(); ok {
 		if err := category.TextValidator(v); err != nil {
-			return &ValidationError{Name: "text", err: fmt.Errorf(`ent: validator failed for field "text": %w`, err)}
+			return &ValidationError{Name: "text", err: fmt.Errorf(`ent: validator failed for field "Category.text": %w`, err)}
 		}
 	}
 	if _, ok := cc.mutation.Status(); !ok {
-		return &ValidationError{Name: "status", err: errors.New(`ent: missing required field "status"`)}
+		return &ValidationError{Name: "status", err: errors.New(`ent: missing required field "Category.status"`)}
 	}
 	if v, ok := cc.mutation.Status(); ok {
 		if err := category.StatusValidator(v); err != nil {
-			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "status": %w`, err)}
+			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "Category.status": %w`, err)}
 		}
 	}
 	return nil
@@ -227,6 +241,14 @@ func (cc *CategoryCreate) createSpec() (*Category, *sqlgraph.CreateSpec) {
 			Column: category.FieldDuration,
 		})
 		_node.Duration = value
+	}
+	if value, ok := cc.mutation.Count(); ok {
+		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
+			Type:   field.TypeUint64,
+			Value:  value,
+			Column: category.FieldCount,
+		})
+		_node.Count = value
 	}
 	if nodes := cc.mutation.TodosIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{

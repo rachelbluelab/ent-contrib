@@ -8,7 +8,9 @@ import (
 
 	"entgo.io/contrib/entproto/internal/todo/ent/attachment"
 	"entgo.io/contrib/entproto/internal/todo/ent/group"
+	"entgo.io/contrib/entproto/internal/todo/ent/multiwordschema"
 	"entgo.io/contrib/entproto/internal/todo/ent/nilexample"
+	"entgo.io/contrib/entproto/internal/todo/ent/pet"
 	"entgo.io/contrib/entproto/internal/todo/ent/todo"
 	"entgo.io/contrib/entproto/internal/todo/ent/user"
 	"entgo.io/ent"
@@ -33,11 +35,13 @@ type OrderFunc func(*sql.Selector)
 // columnChecker returns a function indicates if the column exists in the given column.
 func columnChecker(table string) func(string) error {
 	checks := map[string]func(string) bool{
-		attachment.Table: attachment.ValidColumn,
-		group.Table:      group.ValidColumn,
-		nilexample.Table: nilexample.ValidColumn,
-		todo.Table:       todo.ValidColumn,
-		user.Table:       user.ValidColumn,
+		attachment.Table:      attachment.ValidColumn,
+		group.Table:           group.ValidColumn,
+		multiwordschema.Table: multiwordschema.ValidColumn,
+		nilexample.Table:      nilexample.ValidColumn,
+		pet.Table:             pet.ValidColumn,
+		todo.Table:            todo.ValidColumn,
+		user.Table:            user.ValidColumn,
 	}
 	check, ok := checks[table]
 	if !ok {
@@ -149,7 +153,7 @@ func Sum(field string) AggregateFunc {
 	}
 }
 
-// ValidationError returns when validating a field fails.
+// ValidationError returns when validating a field or edge fails.
 type ValidationError struct {
 	Name string // Field or edge name.
 	err  error

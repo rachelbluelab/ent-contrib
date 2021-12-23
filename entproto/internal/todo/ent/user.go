@@ -9,6 +9,7 @@ import (
 
 	"entgo.io/contrib/entproto/internal/todo/ent/attachment"
 	"entgo.io/contrib/entproto/internal/todo/ent/group"
+	"entgo.io/contrib/entproto/internal/todo/ent/pet"
 	"entgo.io/contrib/entproto/internal/todo/ent/schema"
 	"entgo.io/contrib/entproto/internal/todo/ent/user"
 	"entgo.io/ent/dialect/sql"
@@ -46,6 +47,12 @@ type User struct {
 	OptBool bool `json:"opt_bool,omitempty"`
 	// BigInt holds the value of the "big_int" field.
 	BigInt schema.BigInt `json:"big_int,omitempty"`
+	// BUser1 holds the value of the "b_user_1" field.
+	BUser1 int `json:"b_user_1,omitempty"`
+	// HeightInCm holds the value of the "height_in_cm" field.
+	HeightInCm float32 `json:"height_in_cm,omitempty"`
+	// AccountBalance holds the value of the "account_balance" field.
+	AccountBalance float64 `json:"account_balance,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the UserQuery when eager-loading is set.
 	Edges      UserEdges `json:"edges"`
@@ -58,11 +65,13 @@ type UserEdges struct {
 	Group *Group `json:"group,omitempty"`
 	// Attachment holds the value of the attachment edge.
 	Attachment *Attachment `json:"attachment,omitempty"`
-	// Received holds the value of the received edge.
-	Received []*Attachment `json:"received,omitempty"`
+	// Received1 holds the value of the received_1 edge.
+	Received1 []*Attachment `json:"received_1,omitempty"`
+	// Pet holds the value of the pet edge.
+	Pet *Pet `json:"pet,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [3]bool
+	loadedTypes [4]bool
 }
 
 // GroupOrErr returns the Group value or an error if the edge
@@ -93,13 +102,27 @@ func (e UserEdges) AttachmentOrErr() (*Attachment, error) {
 	return nil, &NotLoadedError{edge: "attachment"}
 }
 
-// ReceivedOrErr returns the Received value or an error if the edge
+// Received1OrErr returns the Received1 value or an error if the edge
 // was not loaded in eager-loading.
-func (e UserEdges) ReceivedOrErr() ([]*Attachment, error) {
+func (e UserEdges) Received1OrErr() ([]*Attachment, error) {
 	if e.loadedTypes[2] {
-		return e.Received, nil
+		return e.Received1, nil
 	}
-	return nil, &NotLoadedError{edge: "received"}
+	return nil, &NotLoadedError{edge: "received_1"}
+}
+
+// PetOrErr returns the Pet value or an error if the edge
+// was not loaded in eager-loading, or loaded but was not found.
+func (e UserEdges) PetOrErr() (*Pet, error) {
+	if e.loadedTypes[3] {
+		if e.Pet == nil {
+			// The edge pet was loaded in eager-loading,
+			// but was not found.
+			return nil, &NotFoundError{label: pet.Label}
+		}
+		return e.Pet, nil
+	}
+	return nil, &NotLoadedError{edge: "pet"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -111,7 +134,9 @@ func (*User) scanValues(columns []string) ([]interface{}, error) {
 			values[i] = new(schema.BigInt)
 		case user.FieldBanned, user.FieldOptBool:
 			values[i] = new(sql.NullBool)
-		case user.FieldID, user.FieldPoints, user.FieldExp, user.FieldExternalID, user.FieldCustomPb, user.FieldOptNum:
+		case user.FieldHeightInCm, user.FieldAccountBalance:
+			values[i] = new(sql.NullFloat64)
+		case user.FieldID, user.FieldPoints, user.FieldExp, user.FieldExternalID, user.FieldCustomPb, user.FieldOptNum, user.FieldBUser1:
 			values[i] = new(sql.NullInt64)
 		case user.FieldUserName, user.FieldStatus, user.FieldOptStr:
 			values[i] = new(sql.NullString)
@@ -220,6 +245,24 @@ func (u *User) assignValues(columns []string, values []interface{}) error {
 			} else if value != nil {
 				u.BigInt = *value
 			}
+		case user.FieldBUser1:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field b_user_1", values[i])
+			} else if value.Valid {
+				u.BUser1 = int(value.Int64)
+			}
+		case user.FieldHeightInCm:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field height_in_cm", values[i])
+			} else if value.Valid {
+				u.HeightInCm = float32(value.Float64)
+			}
+		case user.FieldAccountBalance:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field account_balance", values[i])
+			} else if value.Valid {
+				u.AccountBalance = value.Float64
+			}
 		case user.ForeignKeys[0]:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for edge-field user_group", value)
@@ -242,9 +285,14 @@ func (u *User) QueryAttachment() *AttachmentQuery {
 	return (&UserClient{config: u.config}).QueryAttachment(u)
 }
 
-// QueryReceived queries the "received" edge of the User entity.
-func (u *User) QueryReceived() *AttachmentQuery {
-	return (&UserClient{config: u.config}).QueryReceived(u)
+// QueryReceived1 queries the "received_1" edge of the User entity.
+func (u *User) QueryReceived1() *AttachmentQuery {
+	return (&UserClient{config: u.config}).QueryReceived1(u)
+}
+
+// QueryPet queries the "pet" edge of the User entity.
+func (u *User) QueryPet() *PetQuery {
+	return (&UserClient{config: u.config}).QueryPet(u)
 }
 
 // Update returns a builder for updating this User.
@@ -296,6 +344,12 @@ func (u *User) String() string {
 	builder.WriteString(fmt.Sprintf("%v", u.OptBool))
 	builder.WriteString(", big_int=")
 	builder.WriteString(fmt.Sprintf("%v", u.BigInt))
+	builder.WriteString(", b_user_1=")
+	builder.WriteString(fmt.Sprintf("%v", u.BUser1))
+	builder.WriteString(", height_in_cm=")
+	builder.WriteString(fmt.Sprintf("%v", u.HeightInCm))
+	builder.WriteString(", account_balance=")
+	builder.WriteString(fmt.Sprintf("%v", u.AccountBalance))
 	builder.WriteByte(')')
 	return builder.String()
 }

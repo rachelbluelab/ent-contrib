@@ -10,6 +10,7 @@ import (
 
 	"entgo.io/contrib/entproto/internal/todo/ent/attachment"
 	"entgo.io/contrib/entproto/internal/todo/ent/group"
+	"entgo.io/contrib/entproto/internal/todo/ent/pet"
 	"entgo.io/contrib/entproto/internal/todo/ent/schema"
 	"entgo.io/contrib/entproto/internal/todo/ent/user"
 	"entgo.io/ent/dialect/sql/sqlgraph"
@@ -142,6 +143,48 @@ func (uc *UserCreate) SetNillableBigInt(si *schema.BigInt) *UserCreate {
 	return uc
 }
 
+// SetBUser1 sets the "b_user_1" field.
+func (uc *UserCreate) SetBUser1(i int) *UserCreate {
+	uc.mutation.SetBUser1(i)
+	return uc
+}
+
+// SetNillableBUser1 sets the "b_user_1" field if the given value is not nil.
+func (uc *UserCreate) SetNillableBUser1(i *int) *UserCreate {
+	if i != nil {
+		uc.SetBUser1(*i)
+	}
+	return uc
+}
+
+// SetHeightInCm sets the "height_in_cm" field.
+func (uc *UserCreate) SetHeightInCm(f float32) *UserCreate {
+	uc.mutation.SetHeightInCm(f)
+	return uc
+}
+
+// SetNillableHeightInCm sets the "height_in_cm" field if the given value is not nil.
+func (uc *UserCreate) SetNillableHeightInCm(f *float32) *UserCreate {
+	if f != nil {
+		uc.SetHeightInCm(*f)
+	}
+	return uc
+}
+
+// SetAccountBalance sets the "account_balance" field.
+func (uc *UserCreate) SetAccountBalance(f float64) *UserCreate {
+	uc.mutation.SetAccountBalance(f)
+	return uc
+}
+
+// SetNillableAccountBalance sets the "account_balance" field if the given value is not nil.
+func (uc *UserCreate) SetNillableAccountBalance(f *float64) *UserCreate {
+	if f != nil {
+		uc.SetAccountBalance(*f)
+	}
+	return uc
+}
+
 // SetGroupID sets the "group" edge to the Group entity by ID.
 func (uc *UserCreate) SetGroupID(id int) *UserCreate {
 	uc.mutation.SetGroupID(id)
@@ -180,19 +223,38 @@ func (uc *UserCreate) SetAttachment(a *Attachment) *UserCreate {
 	return uc.SetAttachmentID(a.ID)
 }
 
-// AddReceivedIDs adds the "received" edge to the Attachment entity by IDs.
-func (uc *UserCreate) AddReceivedIDs(ids ...uuid.UUID) *UserCreate {
-	uc.mutation.AddReceivedIDs(ids...)
+// AddReceived1IDs adds the "received_1" edge to the Attachment entity by IDs.
+func (uc *UserCreate) AddReceived1IDs(ids ...uuid.UUID) *UserCreate {
+	uc.mutation.AddReceived1IDs(ids...)
 	return uc
 }
 
-// AddReceived adds the "received" edges to the Attachment entity.
-func (uc *UserCreate) AddReceived(a ...*Attachment) *UserCreate {
+// AddReceived1 adds the "received_1" edges to the Attachment entity.
+func (uc *UserCreate) AddReceived1(a ...*Attachment) *UserCreate {
 	ids := make([]uuid.UUID, len(a))
 	for i := range a {
 		ids[i] = a[i].ID
 	}
-	return uc.AddReceivedIDs(ids...)
+	return uc.AddReceived1IDs(ids...)
+}
+
+// SetPetID sets the "pet" edge to the Pet entity by ID.
+func (uc *UserCreate) SetPetID(id int) *UserCreate {
+	uc.mutation.SetPetID(id)
+	return uc
+}
+
+// SetNillablePetID sets the "pet" edge to the Pet entity by ID if the given value is not nil.
+func (uc *UserCreate) SetNillablePetID(id *int) *UserCreate {
+	if id != nil {
+		uc = uc.SetPetID(*id)
+	}
+	return uc
+}
+
+// SetPet sets the "pet" edge to the Pet entity.
+func (uc *UserCreate) SetPet(p *Pet) *UserCreate {
+	return uc.SetPetID(p.ID)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -270,41 +332,55 @@ func (uc *UserCreate) defaults() {
 		v := user.DefaultBanned
 		uc.mutation.SetBanned(v)
 	}
+	if _, ok := uc.mutation.HeightInCm(); !ok {
+		v := user.DefaultHeightInCm
+		uc.mutation.SetHeightInCm(v)
+	}
+	if _, ok := uc.mutation.AccountBalance(); !ok {
+		v := user.DefaultAccountBalance
+		uc.mutation.SetAccountBalance(v)
+	}
 }
 
 // check runs all checks and user-defined validators on the builder.
 func (uc *UserCreate) check() error {
 	if _, ok := uc.mutation.UserName(); !ok {
-		return &ValidationError{Name: "user_name", err: errors.New(`ent: missing required field "user_name"`)}
+		return &ValidationError{Name: "user_name", err: errors.New(`ent: missing required field "User.user_name"`)}
 	}
 	if _, ok := uc.mutation.Joined(); !ok {
-		return &ValidationError{Name: "joined", err: errors.New(`ent: missing required field "joined"`)}
+		return &ValidationError{Name: "joined", err: errors.New(`ent: missing required field "User.joined"`)}
 	}
 	if _, ok := uc.mutation.Points(); !ok {
-		return &ValidationError{Name: "points", err: errors.New(`ent: missing required field "points"`)}
+		return &ValidationError{Name: "points", err: errors.New(`ent: missing required field "User.points"`)}
 	}
 	if _, ok := uc.mutation.Exp(); !ok {
-		return &ValidationError{Name: "exp", err: errors.New(`ent: missing required field "exp"`)}
+		return &ValidationError{Name: "exp", err: errors.New(`ent: missing required field "User.exp"`)}
 	}
 	if _, ok := uc.mutation.Status(); !ok {
-		return &ValidationError{Name: "status", err: errors.New(`ent: missing required field "status"`)}
+		return &ValidationError{Name: "status", err: errors.New(`ent: missing required field "User.status"`)}
 	}
 	if v, ok := uc.mutation.Status(); ok {
 		if err := user.StatusValidator(v); err != nil {
-			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "status": %w`, err)}
+			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "User.status": %w`, err)}
 		}
 	}
 	if _, ok := uc.mutation.ExternalID(); !ok {
-		return &ValidationError{Name: "external_id", err: errors.New(`ent: missing required field "external_id"`)}
+		return &ValidationError{Name: "external_id", err: errors.New(`ent: missing required field "User.external_id"`)}
 	}
 	if _, ok := uc.mutation.CrmID(); !ok {
-		return &ValidationError{Name: "crm_id", err: errors.New(`ent: missing required field "crm_id"`)}
+		return &ValidationError{Name: "crm_id", err: errors.New(`ent: missing required field "User.crm_id"`)}
 	}
 	if _, ok := uc.mutation.Banned(); !ok {
-		return &ValidationError{Name: "banned", err: errors.New(`ent: missing required field "banned"`)}
+		return &ValidationError{Name: "banned", err: errors.New(`ent: missing required field "User.banned"`)}
 	}
 	if _, ok := uc.mutation.CustomPb(); !ok {
-		return &ValidationError{Name: "custom_pb", err: errors.New(`ent: missing required field "custom_pb"`)}
+		return &ValidationError{Name: "custom_pb", err: errors.New(`ent: missing required field "User.custom_pb"`)}
+	}
+	if _, ok := uc.mutation.HeightInCm(); !ok {
+		return &ValidationError{Name: "height_in_cm", err: errors.New(`ent: missing required field "User.height_in_cm"`)}
+	}
+	if _, ok := uc.mutation.AccountBalance(); !ok {
+		return &ValidationError{Name: "account_balance", err: errors.New(`ent: missing required field "User.account_balance"`)}
 	}
 	return nil
 }
@@ -437,6 +513,30 @@ func (uc *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 		})
 		_node.BigInt = value
 	}
+	if value, ok := uc.mutation.BUser1(); ok {
+		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
+			Type:   field.TypeInt,
+			Value:  value,
+			Column: user.FieldBUser1,
+		})
+		_node.BUser1 = value
+	}
+	if value, ok := uc.mutation.HeightInCm(); ok {
+		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
+			Type:   field.TypeFloat32,
+			Value:  value,
+			Column: user.FieldHeightInCm,
+		})
+		_node.HeightInCm = value
+	}
+	if value, ok := uc.mutation.AccountBalance(); ok {
+		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
+			Type:   field.TypeFloat64,
+			Value:  value,
+			Column: user.FieldAccountBalance,
+		})
+		_node.AccountBalance = value
+	}
 	if nodes := uc.mutation.GroupIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2O,
@@ -476,17 +576,36 @@ func (uc *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 		}
 		_spec.Edges = append(_spec.Edges, edge)
 	}
-	if nodes := uc.mutation.ReceivedIDs(); len(nodes) > 0 {
+	if nodes := uc.mutation.Received1IDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2M,
 			Inverse: true,
-			Table:   user.ReceivedTable,
-			Columns: user.ReceivedPrimaryKey,
+			Table:   user.Received1Table,
+			Columns: user.Received1PrimaryKey,
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: &sqlgraph.FieldSpec{
 					Type:   field.TypeUUID,
 					Column: attachment.FieldID,
+				},
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := uc.mutation.PetIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2O,
+			Inverse: false,
+			Table:   user.PetTable,
+			Columns: []string{user.PetColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeInt,
+					Column: pet.FieldID,
 				},
 			},
 		}

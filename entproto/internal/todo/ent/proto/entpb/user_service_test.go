@@ -16,6 +16,8 @@ package entpb
 
 import (
 	"context"
+	"entgo.io/contrib/entproto"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -52,9 +54,11 @@ func TestUserService_Create(t *testing.T) {
 		Group: &Group{
 			Id: int32(group.ID),
 		},
-		CrmId:      crmID,
-		Attachment: &Attachment{Id: attachmentID},
-		Banned:     true,
+		CrmId:          crmID,
+		Attachment:     &Attachment{Id: attachmentID},
+		Banned:         true,
+		HeightInCm:     170.18,
+		AccountBalance: 2000.50,
 	}
 	created, err := svc.Create(ctx, &CreateUserRequest{
 		User: inputUser,
@@ -69,6 +73,8 @@ func TestUserService_Create(t *testing.T) {
 	require.EqualValues(t, inputUser.Points, fromDB.Points)
 	require.EqualValues(t, inputUser.Status.String(), strings.ToUpper(string(fromDB.Status)))
 	require.EqualValues(t, inputUser.Banned, fromDB.Banned)
+	require.EqualValues(t, inputUser.HeightInCm, fromDB.HeightInCm)
+	require.EqualValues(t, inputUser.AccountBalance, fromDB.AccountBalance)
 
 	// preexisting user
 	_, err = svc.Create(ctx, &CreateUserRequest{
@@ -93,6 +99,8 @@ func TestUserService_Get(t *testing.T) {
 		SetExternalID(1).
 		SetCrmID(uuid.New()).
 		SetCustomPb(1).
+		SetHeightInCm(170.18).
+		SetAccountBalance(2000.50).
 		SaveX(ctx)
 	get, err := svc.Get(ctx, &GetUserRequest{
 		Id: int32(created.ID),
@@ -102,6 +110,8 @@ func TestUserService_Get(t *testing.T) {
 	require.EqualValues(t, created.Exp, get.Exp)
 	require.EqualValues(t, created.Joined.Unix(), get.Joined.AsTime().Unix())
 	require.EqualValues(t, created.Points, get.Points)
+	require.EqualValues(t, created.HeightInCm, get.HeightInCm)
+	require.EqualValues(t, created.AccountBalance, get.AccountBalance)
 	get, err = svc.Get(ctx, &GetUserRequest{
 		Id: 1000,
 	})
@@ -158,6 +168,8 @@ func TestUserService_Update(t *testing.T) {
 		SetExternalID(1).
 		SetCrmID(uuid.New()).
 		SetCustomPb(1).
+		SetHeightInCm(170.18).
+		SetAccountBalance(2000.50).
 		SaveX(ctx)
 
 	attachmentID, err := attachment.ID.MarshalBinary()
@@ -180,7 +192,9 @@ func TestUserService_Update(t *testing.T) {
 		Attachment: &Attachment{
 			Id: attachmentID,
 		},
-		CrmId: crmID,
+		CrmId:          crmID,
+		HeightInCm:     175.18,
+		AccountBalance: 5000.75,
 	}
 	updated, err := svc.Update(ctx, &UpdateUserRequest{
 		User: inputUser,
@@ -190,4 +204,81 @@ func TestUserService_Update(t *testing.T) {
 
 	afterUpd := client.User.GetX(ctx, created.ID)
 	require.EqualValues(t, inputUser.Exp, afterUpd.Exp)
+}
+
+func TestUserService_List(t *testing.T) {
+	client := enttest.Open(t, "sqlite3", "file:ent?mode=memory&cache=shared&_fk=1")
+	defer client.Close()
+	svc := NewUserService(client)
+	ctx := context.Background()
+
+	// Create test entries
+	for i := 0; i < (entproto.MaxPageSize*2)+5; i++ {
+		_ = client.User.Create().
+			SetUserName(fmt.Sprintf("User%d", i)).
+			SetExternalID(i).
+			SetJoined(time.Now()).
+			SetExp(1000).
+			SetPoints(10).
+			SetStatus("pending").
+			SetCrmID(uuid.New()).
+			SetCustomPb(1).
+			SaveX(ctx)
+	}
+
+	// First page
+	resp, err := svc.List(ctx, &ListUserRequest{
+		PageSize: entproto.MaxPageSize * 2,
+	})
+	require.NoError(t, err)
+	// Check number of entities returned. Should be max page size
+	require.EqualValues(t, entproto.MaxPageSize, len(resp.UserList))
+	// Check unique values of returned entities
+	for entryIdx, entry := range resp.UserList {
+		entityID := ((entproto.MaxPageSize * 2) + 5) - (entryIdx + 1)
+		require.EqualValues(t, fmt.Sprintf("User%d", entityID), entry.UserName)
+		require.EqualValues(t, entityID, entry.ExternalId)
+	}
+
+	// Second page
+	resp, err = svc.List(ctx, &ListUserRequest{
+		PageToken: resp.NextPageToken,
+	})
+	require.NoError(t, err)
+	// Check number of entities returned. Should be max page size which is the default
+	require.EqualValues(t, entproto.MaxPageSize, len(resp.UserList))
+	// Check that we actually got values from the second page
+	for entryIdx, entry := range resp.UserList {
+		entityID := (entproto.MaxPageSize + 5) - (entryIdx + 1)
+		require.EqualValues(t, fmt.Sprintf("User%d", entityID), entry.UserName)
+		require.EqualValues(t, entityID, entry.ExternalId)
+	}
+
+	// Final page
+	resp, err = svc.List(ctx, &ListUserRequest{
+		PageToken: resp.NextPageToken,
+	})
+	require.NoError(t, err)
+	// Check number of entities returned
+	require.EqualValues(t, 5, len(resp.UserList))
+	// Check that no next page token was returned
+	require.EqualValues(t, "", resp.NextPageToken)
+
+	// Invalid page size
+	resp, err = svc.List(ctx, &ListUserRequest{
+		PageSize: -1,
+	})
+	require.Nil(t, resp)
+	respStatus, ok := status.FromError(err)
+	require.True(t, ok, "expected a gRPC status error")
+	require.EqualValues(t, respStatus.Code(), codes.InvalidArgument)
+
+	// Invalid page token
+	resp, err = svc.List(ctx, &ListUserRequest{
+		PageToken: "INVALID PAGE TOKEN",
+	})
+	require.Nil(t, resp)
+	respStatus, ok = status.FromError(err)
+	require.True(t, ok, "expected a gRPC status error")
+	require.EqualValues(t, respStatus.Code(), codes.InvalidArgument)
 }

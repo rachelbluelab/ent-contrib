@@ -185,7 +185,7 @@ This is useful in cases where a `Mixin` is used and its default behavior enables
 
 `entproto` supports the generation of simple CRUD gRPC service definitions from `ent.Schema`
 
-To enable generation of a service definition, add an `entproto.Service() annotation:
+To enable generation of a service definition, add an `entproto.Service()` annotation:
 ```go
 func (User) Annotations() []schema.Annotation {
 	return []schema.Annotation{
@@ -222,6 +222,57 @@ service UserService {
   rpc Delete ( DeleteUserRequest ) returns ( google.protobuf.Empty );
 }
 ```
+Method generation can be customized by including the argument `entproto.Methods()` in the `entproto.Service()` annotation. 
+`entproto.Methods()` accepts bit flags to determine what service methods should be generated.
+```go
+// Generates a Create gRPC service method for the entproto.Service.
+entproto.MethodCreate
+
+// Generates a Get gRPC service method for the entproto.Service.
+entproto.MethodGet
+
+// Generates an Update gRPC service method for the entproto.Service.
+entproto.MethodUpdate
+
+// Generates a Delete gRPC service method for the entproto.Service.
+entproto.MethodDelete
+
+// Generates all service methods for the entproto.Service.
+// This is the same behavior as not including entproto.Methods.
+entproto.MethodAll
+```
+To generate a service with multiple methods, bitwise OR the flags.
+
+
+For example, the `ent.Schema` can be modified to generate only `Create` and `Get` methods:
+```go
+func (User) Annotations() []schema.Annotation {
+	return []schema.Annotation{
+		entproto.Message(),
+		entproto.Service(
+			entproto.Methods(entproto.MethodCreate | entproto.MethodGet),
+        ),
+	}
+}
+```
+
+This will generate:
+```protobuf
+message CreateUserRequest {
+  User user = 1;
+}
+
+message GetUserRequest {
+  int32 id = 1;
+}
+
+service UserService {
+  rpc Create ( CreateUserRequest ) returns ( User );
+
+  rpc Get ( GetUserRequest ) returns ( User );
+}
+```
+
 ## Field Annotations
 
 ### entproto.Field
@@ -377,3 +428,50 @@ message BlogPost {
 
 Validation:
 * Cyclic dependencies are not supported in protobuf - so back references can only be supported if both messages are output to the same proto package. (In the above example, `BlogPost`, `User` and `Category` must be output to the same proto package).
+
+### Contributing
+
+#### Code generation
+Please re-generate all code using `go generate ./...` before checking code in - CI will fail
+on [this check](https://github.com/ent/contrib/blob/f21123a5a76255777ef50e8f263e8741b936e0c7/.github/workflows/ci.yml#L67)
+otherwise. To ensure you get the same output as the CI process make sure your local environment has
+the same `protoc`, `protoc-gen-go` and `protoc-gen-go-grpc`. See the environment setup in the
+[ci.yaml](https://github.com/ent/contrib/blob/f21123a5a76255777ef50e8f263e8741b936e0c7/.github/workflows/ci.yml#L57-L64)
+file.
+
+#### Codegen + Test flow
+
+To rebuild the `protoc-gen-entgrpc` plugin, regenerate the code and run all tests:
+
+```shell
+go generate ./cmd/protoc-gen-entgrpc/... && 
+  go get entgo.io/contrib/entproto/cmd/protoc-gen-entgrpc &&
+  go generate ./... &&
+  go test ./... 
+```
+
+#### Running in Docker
+
+If you prefer to run code-generation inside a Docker container you
+can use the provided [Dockerfile](Dockerfile) that mimics the CI environment. 
+
+Build the image:
+```shell
+docker build -t entproto-dev .
+```
+
+Run the image (from the root `contrib/` directory), mounting your local source code
+into `/go/src` inside the container:
+```shell
+docker run -it -v $(pwd):/go/src -w /go/src/entproto entproto bash
+```
+
+From within the Docker image, compile and install your current `protoc-gen-entgrpc`
+binary, regenerate all code and run the tests. 
+```shell
+go generate ./cmd/protoc-gen-entgrpc/... && 
+  go get entgo.io/contrib/entproto/cmd/protoc-gen-entgrpc &&
+  go generate ./... &&
+  go test ./... 
+```
+

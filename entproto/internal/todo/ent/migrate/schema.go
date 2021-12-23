@@ -38,6 +38,17 @@ var (
 		Columns:    GroupsColumns,
 		PrimaryKey: []*schema.Column{GroupsColumns[0]},
 	}
+	// MultiWordSchemasColumns holds the columns for the "multi_word_schemas" table.
+	MultiWordSchemasColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "unit", Type: field.TypeEnum, Enums: []string{"m", "ft"}, Default: "m"},
+	}
+	// MultiWordSchemasTable holds the schema information for the "multi_word_schemas" table.
+	MultiWordSchemasTable = &schema.Table{
+		Name:       "multi_word_schemas",
+		Columns:    MultiWordSchemasColumns,
+		PrimaryKey: []*schema.Column{MultiWordSchemasColumns[0]},
+	}
 	// NilExamplesColumns holds the columns for the "nil_examples" table.
 	NilExamplesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -49,6 +60,25 @@ var (
 		Name:       "nil_examples",
 		Columns:    NilExamplesColumns,
 		PrimaryKey: []*schema.Column{NilExamplesColumns[0]},
+	}
+	// PetsColumns holds the columns for the "pets" table.
+	PetsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "user_pet", Type: field.TypeInt, Unique: true, Nullable: true},
+	}
+	// PetsTable holds the schema information for the "pets" table.
+	PetsTable = &schema.Table{
+		Name:       "pets",
+		Columns:    PetsColumns,
+		PrimaryKey: []*schema.Column{PetsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "pets_users_pet",
+				Columns:    []*schema.Column{PetsColumns[1]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
 	}
 	// TodosColumns holds the columns for the "todos" table.
 	TodosColumns = []*schema.Column{
@@ -87,6 +117,9 @@ var (
 		{Name: "opt_str", Type: field.TypeString, Nullable: true},
 		{Name: "opt_bool", Type: field.TypeBool, Nullable: true},
 		{Name: "big_int", Type: field.TypeInt, Nullable: true},
+		{Name: "b_user_1", Type: field.TypeInt, Unique: true, Nullable: true},
+		{Name: "height_in_cm", Type: field.TypeFloat32, Default: 0},
+		{Name: "account_balance", Type: field.TypeFloat64, Default: 0},
 		{Name: "user_group", Type: field.TypeInt, Nullable: true},
 	}
 	// UsersTable holds the schema information for the "users" table.
@@ -97,7 +130,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "users_groups_group",
-				Columns:    []*schema.Column{UsersColumns[14]},
+				Columns:    []*schema.Column{UsersColumns[17]},
 				RefColumns: []*schema.Column{GroupsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -132,7 +165,9 @@ var (
 	Tables = []*schema.Table{
 		AttachmentsTable,
 		GroupsTable,
+		MultiWordSchemasTable,
 		NilExamplesTable,
+		PetsTable,
 		TodosTable,
 		UsersTable,
 		AttachmentRecipientsTable,
@@ -141,6 +176,7 @@ var (
 
 func init() {
 	AttachmentsTable.ForeignKeys[0].RefTable = UsersTable
+	PetsTable.ForeignKeys[0].RefTable = UsersTable
 	TodosTable.ForeignKeys[0].RefTable = UsersTable
 	UsersTable.ForeignKeys[0].RefTable = GroupsTable
 	AttachmentRecipientsTable.ForeignKeys[0].RefTable = AttachmentsTable

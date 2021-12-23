@@ -18,6 +18,7 @@ package ent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -92,6 +93,33 @@ func (cu *CategoryUpdate) AddDuration(t time.Duration) *CategoryUpdate {
 // ClearDuration clears the value of the "duration" field.
 func (cu *CategoryUpdate) ClearDuration() *CategoryUpdate {
 	cu.mutation.ClearDuration()
+	return cu
+}
+
+// SetCount sets the "count" field.
+func (cu *CategoryUpdate) SetCount(u uint64) *CategoryUpdate {
+	cu.mutation.ResetCount()
+	cu.mutation.SetCount(u)
+	return cu
+}
+
+// SetNillableCount sets the "count" field if the given value is not nil.
+func (cu *CategoryUpdate) SetNillableCount(u *uint64) *CategoryUpdate {
+	if u != nil {
+		cu.SetCount(*u)
+	}
+	return cu
+}
+
+// AddCount adds u to the "count" field.
+func (cu *CategoryUpdate) AddCount(u int64) *CategoryUpdate {
+	cu.mutation.AddCount(u)
+	return cu
+}
+
+// ClearCount clears the value of the "count" field.
+func (cu *CategoryUpdate) ClearCount() *CategoryUpdate {
+	cu.mutation.ClearCount()
 	return cu
 }
 
@@ -200,12 +228,12 @@ func (cu *CategoryUpdate) ExecX(ctx context.Context) {
 func (cu *CategoryUpdate) check() error {
 	if v, ok := cu.mutation.Text(); ok {
 		if err := category.TextValidator(v); err != nil {
-			return &ValidationError{Name: "text", err: fmt.Errorf("ent: validator failed for field \"text\": %w", err)}
+			return &ValidationError{Name: "text", err: fmt.Errorf(`ent: validator failed for field "Category.text": %w`, err)}
 		}
 	}
 	if v, ok := cu.mutation.Status(); ok {
 		if err := category.StatusValidator(v); err != nil {
-			return &ValidationError{Name: "status", err: fmt.Errorf("ent: validator failed for field \"status\": %w", err)}
+			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "Category.status": %w`, err)}
 		}
 	}
 	return nil
@@ -274,6 +302,26 @@ func (cu *CategoryUpdate) sqlSave(ctx context.Context) (n int, err error) {
 		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
 			Type:   field.TypeInt64,
 			Column: category.FieldDuration,
+		})
+	}
+	if value, ok := cu.mutation.Count(); ok {
+		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
+			Type:   field.TypeUint64,
+			Value:  value,
+			Column: category.FieldCount,
+		})
+	}
+	if value, ok := cu.mutation.AddedCount(); ok {
+		_spec.Fields.Add = append(_spec.Fields.Add, &sqlgraph.FieldSpec{
+			Type:   field.TypeUint64,
+			Value:  value,
+			Column: category.FieldCount,
+		})
+	}
+	if cu.mutation.CountCleared() {
+		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
+			Type:   field.TypeUint64,
+			Column: category.FieldCount,
 		})
 	}
 	if cu.mutation.TodosCleared() {
@@ -400,6 +448,33 @@ func (cuo *CategoryUpdateOne) ClearDuration() *CategoryUpdateOne {
 	return cuo
 }
 
+// SetCount sets the "count" field.
+func (cuo *CategoryUpdateOne) SetCount(u uint64) *CategoryUpdateOne {
+	cuo.mutation.ResetCount()
+	cuo.mutation.SetCount(u)
+	return cuo
+}
+
+// SetNillableCount sets the "count" field if the given value is not nil.
+func (cuo *CategoryUpdateOne) SetNillableCount(u *uint64) *CategoryUpdateOne {
+	if u != nil {
+		cuo.SetCount(*u)
+	}
+	return cuo
+}
+
+// AddCount adds u to the "count" field.
+func (cuo *CategoryUpdateOne) AddCount(u int64) *CategoryUpdateOne {
+	cuo.mutation.AddCount(u)
+	return cuo
+}
+
+// ClearCount clears the value of the "count" field.
+func (cuo *CategoryUpdateOne) ClearCount() *CategoryUpdateOne {
+	cuo.mutation.ClearCount()
+	return cuo
+}
+
 // AddTodoIDs adds the "todos" edge to the Todo entity by IDs.
 func (cuo *CategoryUpdateOne) AddTodoIDs(ids ...pulid.ID) *CategoryUpdateOne {
 	cuo.mutation.AddTodoIDs(ids...)
@@ -512,12 +587,12 @@ func (cuo *CategoryUpdateOne) ExecX(ctx context.Context) {
 func (cuo *CategoryUpdateOne) check() error {
 	if v, ok := cuo.mutation.Text(); ok {
 		if err := category.TextValidator(v); err != nil {
-			return &ValidationError{Name: "text", err: fmt.Errorf("ent: validator failed for field \"text\": %w", err)}
+			return &ValidationError{Name: "text", err: fmt.Errorf(`ent: validator failed for field "Category.text": %w`, err)}
 		}
 	}
 	if v, ok := cuo.mutation.Status(); ok {
 		if err := category.StatusValidator(v); err != nil {
-			return &ValidationError{Name: "status", err: fmt.Errorf("ent: validator failed for field \"status\": %w", err)}
+			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "Category.status": %w`, err)}
 		}
 	}
 	return nil
@@ -536,7 +611,7 @@ func (cuo *CategoryUpdateOne) sqlSave(ctx context.Context) (_node *Category, err
 	}
 	id, ok := cuo.mutation.ID()
 	if !ok {
-		return nil, &ValidationError{Name: "ID", err: fmt.Errorf("missing Category.ID for update")}
+		return nil, &ValidationError{Name: "id", err: errors.New(`ent: missing "Category.id" for update`)}
 	}
 	_spec.Node.ID.Value = id
 	if fields := cuo.fields; len(fields) > 0 {
@@ -603,6 +678,26 @@ func (cuo *CategoryUpdateOne) sqlSave(ctx context.Context) (_node *Category, err
 		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
 			Type:   field.TypeInt64,
 			Column: category.FieldDuration,
+		})
+	}
+	if value, ok := cuo.mutation.Count(); ok {
+		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
+			Type:   field.TypeUint64,
+			Value:  value,
+			Column: category.FieldCount,
+		})
+	}
+	if value, ok := cuo.mutation.AddedCount(); ok {
+		_spec.Fields.Add = append(_spec.Fields.Add, &sqlgraph.FieldSpec{
+			Type:   field.TypeUint64,
+			Value:  value,
+			Column: category.FieldCount,
+		})
+	}
+	if cuo.mutation.CountCleared() {
+		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
+			Type:   field.TypeUint64,
+			Column: category.FieldCount,
 		})
 	}
 	if cuo.mutation.TodosCleared() {

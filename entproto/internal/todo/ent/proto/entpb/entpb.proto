@@ -45,12 +45,94 @@ message DeleteAttachmentRequest {
   bytes id = 1;
 }
 
+message ListAttachmentRequest {
+  int32 page_size = 1;
+
+  string page_token = 2;
+
+  View view = 3;
+
+  enum View {
+    VIEW_UNSPECIFIED = 0;
+
+    BASIC = 1;
+
+    WITH_EDGE_IDS = 2;
+  }
+}
+
+message ListAttachmentResponse {
+  repeated Attachment attachment_list = 1;
+
+  string next_page_token = 2;
+}
+
 message Group {
   int32 id = 1;
 
   string name = 2;
 
   repeated User users = 3;
+}
+
+message MultiWordSchema {
+  int32 id = 1;
+
+  Unit unit = 2;
+
+  enum Unit {
+    M = 0;
+
+    FT = 1;
+  }
+}
+
+message CreateMultiWordSchemaRequest {
+  MultiWordSchema multi_word_schema = 1;
+}
+
+message GetMultiWordSchemaRequest {
+  int32 id = 1;
+
+  View view = 2;
+
+  enum View {
+    VIEW_UNSPECIFIED = 0;
+
+    BASIC = 1;
+
+    WITH_EDGE_IDS = 2;
+  }
+}
+
+message UpdateMultiWordSchemaRequest {
+  MultiWordSchema multi_word_schema = 1;
+}
+
+message DeleteMultiWordSchemaRequest {
+  int32 id = 1;
+}
+
+message ListMultiWordSchemaRequest {
+  int32 page_size = 1;
+
+  string page_token = 2;
+
+  View view = 3;
+
+  enum View {
+    VIEW_UNSPECIFIED = 0;
+
+    BASIC = 1;
+
+    WITH_EDGE_IDS = 2;
+  }
+}
+
+message ListMultiWordSchemaResponse {
+  repeated MultiWordSchema multi_word_schema_list = 1;
+
+  string next_page_token = 2;
 }
 
 message NilExample {
@@ -85,6 +167,82 @@ message UpdateNilExampleRequest {
 
 message DeleteNilExampleRequest {
   int32 id = 1;
+}
+
+message ListNilExampleRequest {
+  int32 page_size = 1;
+
+  string page_token = 2;
+
+  View view = 3;
+
+  enum View {
+    VIEW_UNSPECIFIED = 0;
+
+    BASIC = 1;
+
+    WITH_EDGE_IDS = 2;
+  }
+}
+
+message ListNilExampleResponse {
+  repeated NilExample nil_example_list = 1;
+
+  string next_page_token = 2;
+}
+
+message Pet {
+  int32 id = 1;
+
+  User owner = 2;
+}
+
+message CreatePetRequest {
+  Pet pet = 1;
+}
+
+message GetPetRequest {
+  int32 id = 1;
+
+  View view = 2;
+
+  enum View {
+    VIEW_UNSPECIFIED = 0;
+
+    BASIC = 1;
+
+    WITH_EDGE_IDS = 2;
+  }
+}
+
+message UpdatePetRequest {
+  Pet pet = 1;
+}
+
+message DeletePetRequest {
+  int32 id = 1;
+}
+
+message ListPetRequest {
+  int32 page_size = 1;
+
+  string page_token = 2;
+
+  View view = 3;
+
+  enum View {
+    VIEW_UNSPECIFIED = 0;
+
+    BASIC = 1;
+
+    WITH_EDGE_IDS = 2;
+  }
+}
+
+message ListPetResponse {
+  repeated Pet pet_list = 1;
+
+  string next_page_token = 2;
 }
 
 message Todo {
@@ -134,11 +292,19 @@ message User {
 
   google.protobuf.StringValue big_int = 17;
 
+  google.protobuf.Int32Value b_user_1 = 18;
+
+  float height_in_cm = 19;
+
+  double account_balance = 20;
+
   Group group = 7;
 
   Attachment attachment = 11;
 
-  repeated Attachment received = 16;
+  repeated Attachment received_1 = 16;
+
+  Pet pet = 21;
 
   enum Status {
     STATUS_UNSPECIFIED = 0;
@@ -175,6 +341,28 @@ message DeleteUserRequest {
   int32 id = 1;
 }
 
+message ListUserRequest {
+  int32 page_size = 1;
+
+  string page_token = 2;
+
+  View view = 3;
+
+  enum View {
+    VIEW_UNSPECIFIED = 0;
+
+    BASIC = 1;
+
+    WITH_EDGE_IDS = 2;
+  }
+}
+
+message ListUserResponse {
+  repeated User user_list = 1;
+
+  string next_page_token = 2;
+}
+
 service AttachmentService {
   rpc Create ( CreateAttachmentRequest ) returns ( Attachment );
 
@@ -183,6 +371,20 @@ service AttachmentService {
   rpc Update ( UpdateAttachmentRequest ) returns ( Attachment );
 
   rpc Delete ( DeleteAttachmentRequest ) returns ( google.protobuf.Empty );
+
+  rpc List ( ListAttachmentRequest ) returns ( ListAttachmentResponse );
+}
+
+service MultiWordSchemaService {
+  rpc Create ( CreateMultiWordSchemaRequest ) returns ( MultiWordSchema );
+
+  rpc Get ( GetMultiWordSchemaRequest ) returns ( MultiWordSchema );
+
+  rpc Update ( UpdateMultiWordSchemaRequest ) returns ( MultiWordSchema );
+
+  rpc Delete ( DeleteMultiWordSchemaRequest ) returns ( google.protobuf.Empty );
+
+  rpc List ( ListMultiWordSchemaRequest ) returns ( ListMultiWordSchemaResponse );
 }
 
 service NilExampleService {
@@ -193,6 +395,20 @@ service NilExampleService {
   rpc Update ( UpdateNilExampleRequest ) returns ( NilExample );
 
   rpc Delete ( DeleteNilExampleRequest ) returns ( google.protobuf.Empty );
+
+  rpc List ( ListNilExampleRequest ) returns ( ListNilExampleResponse );
+}
+
+service PetService {
+  rpc Create ( CreatePetRequest ) returns ( Pet );
+
+  rpc Get ( GetPetRequest ) returns ( Pet );
+
+  rpc Update ( UpdatePetRequest ) returns ( Pet );
+
+  rpc Delete ( DeletePetRequest ) returns ( google.protobuf.Empty );
+
+  rpc List ( ListPetRequest ) returns ( ListPetResponse );
 }
 
 service UserService {
@@ -203,4 +419,6 @@ service UserService {
   rpc Update ( UpdateUserRequest ) returns ( User );
 
   rpc Delete ( DeleteUserRequest ) returns ( google.protobuf.Empty );
+
+  rpc List ( ListUserRequest ) returns ( ListUserResponse );
 }

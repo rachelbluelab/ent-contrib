@@ -12,7 +12,9 @@ import (
 
 	"entgo.io/contrib/entproto/internal/todo/ent/attachment"
 	"entgo.io/contrib/entproto/internal/todo/ent/group"
+	"entgo.io/contrib/entproto/internal/todo/ent/multiwordschema"
 	"entgo.io/contrib/entproto/internal/todo/ent/nilexample"
+	"entgo.io/contrib/entproto/internal/todo/ent/pet"
 	"entgo.io/contrib/entproto/internal/todo/ent/todo"
 	"entgo.io/contrib/entproto/internal/todo/ent/user"
 
@@ -30,8 +32,12 @@ type Client struct {
 	Attachment *AttachmentClient
 	// Group is the client for interacting with the Group builders.
 	Group *GroupClient
+	// MultiWordSchema is the client for interacting with the MultiWordSchema builders.
+	MultiWordSchema *MultiWordSchemaClient
 	// NilExample is the client for interacting with the NilExample builders.
 	NilExample *NilExampleClient
+	// Pet is the client for interacting with the Pet builders.
+	Pet *PetClient
 	// Todo is the client for interacting with the Todo builders.
 	Todo *TodoClient
 	// User is the client for interacting with the User builders.
@@ -51,7 +57,9 @@ func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.Attachment = NewAttachmentClient(c.config)
 	c.Group = NewGroupClient(c.config)
+	c.MultiWordSchema = NewMultiWordSchemaClient(c.config)
 	c.NilExample = NewNilExampleClient(c.config)
+	c.Pet = NewPetClient(c.config)
 	c.Todo = NewTodoClient(c.config)
 	c.User = NewUserClient(c.config)
 }
@@ -85,13 +93,15 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:        ctx,
-		config:     cfg,
-		Attachment: NewAttachmentClient(cfg),
-		Group:      NewGroupClient(cfg),
-		NilExample: NewNilExampleClient(cfg),
-		Todo:       NewTodoClient(cfg),
-		User:       NewUserClient(cfg),
+		ctx:             ctx,
+		config:          cfg,
+		Attachment:      NewAttachmentClient(cfg),
+		Group:           NewGroupClient(cfg),
+		MultiWordSchema: NewMultiWordSchemaClient(cfg),
+		NilExample:      NewNilExampleClient(cfg),
+		Pet:             NewPetClient(cfg),
+		Todo:            NewTodoClient(cfg),
+		User:            NewUserClient(cfg),
 	}, nil
 }
 
@@ -109,12 +119,14 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		config:     cfg,
-		Attachment: NewAttachmentClient(cfg),
-		Group:      NewGroupClient(cfg),
-		NilExample: NewNilExampleClient(cfg),
-		Todo:       NewTodoClient(cfg),
-		User:       NewUserClient(cfg),
+		config:          cfg,
+		Attachment:      NewAttachmentClient(cfg),
+		Group:           NewGroupClient(cfg),
+		MultiWordSchema: NewMultiWordSchemaClient(cfg),
+		NilExample:      NewNilExampleClient(cfg),
+		Pet:             NewPetClient(cfg),
+		Todo:            NewTodoClient(cfg),
+		User:            NewUserClient(cfg),
 	}, nil
 }
 
@@ -146,7 +158,9 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	c.Attachment.Use(hooks...)
 	c.Group.Use(hooks...)
+	c.MultiWordSchema.Use(hooks...)
 	c.NilExample.Use(hooks...)
+	c.Pet.Use(hooks...)
 	c.Todo.Use(hooks...)
 	c.User.Use(hooks...)
 }
@@ -379,6 +393,96 @@ func (c *GroupClient) Hooks() []Hook {
 	return c.hooks.Group
 }
 
+// MultiWordSchemaClient is a client for the MultiWordSchema schema.
+type MultiWordSchemaClient struct {
+	config
+}
+
+// NewMultiWordSchemaClient returns a client for the MultiWordSchema from the given config.
+func NewMultiWordSchemaClient(c config) *MultiWordSchemaClient {
+	return &MultiWordSchemaClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `multiwordschema.Hooks(f(g(h())))`.
+func (c *MultiWordSchemaClient) Use(hooks ...Hook) {
+	c.hooks.MultiWordSchema = append(c.hooks.MultiWordSchema, hooks...)
+}
+
+// Create returns a create builder for MultiWordSchema.
+func (c *MultiWordSchemaClient) Create() *MultiWordSchemaCreate {
+	mutation := newMultiWordSchemaMutation(c.config, OpCreate)
+	return &MultiWordSchemaCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of MultiWordSchema entities.
+func (c *MultiWordSchemaClient) CreateBulk(builders ...*MultiWordSchemaCreate) *MultiWordSchemaCreateBulk {
+	return &MultiWordSchemaCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for MultiWordSchema.
+func (c *MultiWordSchemaClient) Update() *MultiWordSchemaUpdate {
+	mutation := newMultiWordSchemaMutation(c.config, OpUpdate)
+	return &MultiWordSchemaUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *MultiWordSchemaClient) UpdateOne(mws *MultiWordSchema) *MultiWordSchemaUpdateOne {
+	mutation := newMultiWordSchemaMutation(c.config, OpUpdateOne, withMultiWordSchema(mws))
+	return &MultiWordSchemaUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *MultiWordSchemaClient) UpdateOneID(id int) *MultiWordSchemaUpdateOne {
+	mutation := newMultiWordSchemaMutation(c.config, OpUpdateOne, withMultiWordSchemaID(id))
+	return &MultiWordSchemaUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for MultiWordSchema.
+func (c *MultiWordSchemaClient) Delete() *MultiWordSchemaDelete {
+	mutation := newMultiWordSchemaMutation(c.config, OpDelete)
+	return &MultiWordSchemaDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a delete builder for the given entity.
+func (c *MultiWordSchemaClient) DeleteOne(mws *MultiWordSchema) *MultiWordSchemaDeleteOne {
+	return c.DeleteOneID(mws.ID)
+}
+
+// DeleteOneID returns a delete builder for the given id.
+func (c *MultiWordSchemaClient) DeleteOneID(id int) *MultiWordSchemaDeleteOne {
+	builder := c.Delete().Where(multiwordschema.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &MultiWordSchemaDeleteOne{builder}
+}
+
+// Query returns a query builder for MultiWordSchema.
+func (c *MultiWordSchemaClient) Query() *MultiWordSchemaQuery {
+	return &MultiWordSchemaQuery{
+		config: c.config,
+	}
+}
+
+// Get returns a MultiWordSchema entity by its id.
+func (c *MultiWordSchemaClient) Get(ctx context.Context, id int) (*MultiWordSchema, error) {
+	return c.Query().Where(multiwordschema.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *MultiWordSchemaClient) GetX(ctx context.Context, id int) *MultiWordSchema {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *MultiWordSchemaClient) Hooks() []Hook {
+	return c.hooks.MultiWordSchema
+}
+
 // NilExampleClient is a client for the NilExample schema.
 type NilExampleClient struct {
 	config
@@ -467,6 +571,112 @@ func (c *NilExampleClient) GetX(ctx context.Context, id int) *NilExample {
 // Hooks returns the client hooks.
 func (c *NilExampleClient) Hooks() []Hook {
 	return c.hooks.NilExample
+}
+
+// PetClient is a client for the Pet schema.
+type PetClient struct {
+	config
+}
+
+// NewPetClient returns a client for the Pet from the given config.
+func NewPetClient(c config) *PetClient {
+	return &PetClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `pet.Hooks(f(g(h())))`.
+func (c *PetClient) Use(hooks ...Hook) {
+	c.hooks.Pet = append(c.hooks.Pet, hooks...)
+}
+
+// Create returns a create builder for Pet.
+func (c *PetClient) Create() *PetCreate {
+	mutation := newPetMutation(c.config, OpCreate)
+	return &PetCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Pet entities.
+func (c *PetClient) CreateBulk(builders ...*PetCreate) *PetCreateBulk {
+	return &PetCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Pet.
+func (c *PetClient) Update() *PetUpdate {
+	mutation := newPetMutation(c.config, OpUpdate)
+	return &PetUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *PetClient) UpdateOne(pe *Pet) *PetUpdateOne {
+	mutation := newPetMutation(c.config, OpUpdateOne, withPet(pe))
+	return &PetUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *PetClient) UpdateOneID(id int) *PetUpdateOne {
+	mutation := newPetMutation(c.config, OpUpdateOne, withPetID(id))
+	return &PetUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Pet.
+func (c *PetClient) Delete() *PetDelete {
+	mutation := newPetMutation(c.config, OpDelete)
+	return &PetDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a delete builder for the given entity.
+func (c *PetClient) DeleteOne(pe *Pet) *PetDeleteOne {
+	return c.DeleteOneID(pe.ID)
+}
+
+// DeleteOneID returns a delete builder for the given id.
+func (c *PetClient) DeleteOneID(id int) *PetDeleteOne {
+	builder := c.Delete().Where(pet.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &PetDeleteOne{builder}
+}
+
+// Query returns a query builder for Pet.
+func (c *PetClient) Query() *PetQuery {
+	return &PetQuery{
+		config: c.config,
+	}
+}
+
+// Get returns a Pet entity by its id.
+func (c *PetClient) Get(ctx context.Context, id int) (*Pet, error) {
+	return c.Query().Where(pet.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *PetClient) GetX(ctx context.Context, id int) *Pet {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryOwner queries the owner edge of a Pet.
+func (c *PetClient) QueryOwner(pe *Pet) *UserQuery {
+	query := &UserQuery{config: c.config}
+	query.path = func(ctx context.Context) (fromV *sql.Selector, _ error) {
+		id := pe.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(pet.Table, pet.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.O2O, true, pet.OwnerTable, pet.OwnerColumn),
+		)
+		fromV = sqlgraph.Neighbors(pe.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *PetClient) Hooks() []Hook {
+	return c.hooks.Pet
 }
 
 // TodoClient is a client for the Todo schema.
@@ -692,15 +902,31 @@ func (c *UserClient) QueryAttachment(u *User) *AttachmentQuery {
 	return query
 }
 
-// QueryReceived queries the received edge of a User.
-func (c *UserClient) QueryReceived(u *User) *AttachmentQuery {
+// QueryReceived1 queries the received_1 edge of a User.
+func (c *UserClient) QueryReceived1(u *User) *AttachmentQuery {
 	query := &AttachmentQuery{config: c.config}
 	query.path = func(ctx context.Context) (fromV *sql.Selector, _ error) {
 		id := u.ID
 		step := sqlgraph.NewStep(
 			sqlgraph.From(user.Table, user.FieldID, id),
 			sqlgraph.To(attachment.Table, attachment.FieldID),
-			sqlgraph.Edge(sqlgraph.M2M, true, user.ReceivedTable, user.ReceivedPrimaryKey...),
+			sqlgraph.Edge(sqlgraph.M2M, true, user.Received1Table, user.Received1PrimaryKey...),
+		)
+		fromV = sqlgraph.Neighbors(u.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryPet queries the pet edge of a User.
+func (c *UserClient) QueryPet(u *User) *PetQuery {
+	query := &PetQuery{config: c.config}
+	query.path = func(ctx context.Context) (fromV *sql.Selector, _ error) {
+		id := u.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(pet.Table, pet.FieldID),
+			sqlgraph.Edge(sqlgraph.O2O, false, user.PetTable, user.PetColumn),
 		)
 		fromV = sqlgraph.Neighbors(u.driver.Dialect(), step)
 		return fromV, nil
