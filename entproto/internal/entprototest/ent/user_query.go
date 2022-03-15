@@ -12,6 +12,7 @@ import (
 	"entgo.io/contrib/entproto/internal/entprototest/ent/blogpost"
 	"entgo.io/contrib/entproto/internal/entprototest/ent/image"
 	"entgo.io/contrib/entproto/internal/entprototest/ent/predicate"
+	"entgo.io/contrib/entproto/internal/entprototest/ent/skipedgeexample"
 	"entgo.io/contrib/entproto/internal/entprototest/ent/user"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
@@ -31,6 +32,7 @@ type UserQuery struct {
 	// eager-loading edges.
 	withBlogPosts  *BlogPostQuery
 	withProfilePic *ImageQuery
+	withSkipEdge   *SkipEdgeExampleQuery
 	withFKs        bool
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
@@ -112,6 +114,28 @@ func (uq *UserQuery) QueryProfilePic() *ImageQuery {
 	return query
 }
 
+// QuerySkipEdge chains the current query on the "skip_edge" edge.
+func (uq *UserQuery) QuerySkipEdge() *SkipEdgeExampleQuery {
+	query := &SkipEdgeExampleQuery{config: uq.config}
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := uq.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := uq.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(skipedgeexample.Table, skipedgeexample.FieldID),
+			sqlgraph.Edge(sqlgraph.O2O, false, user.SkipEdgeTable, user.SkipEdgeColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(uq.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
 // First returns the first User entity from the query.
 // Returns a *NotFoundError when no User was found.
 func (uq *UserQuery) First(ctx context.Context) (*User, error) {
@@ -158,7 +182,7 @@ func (uq *UserQuery) FirstIDX(ctx context.Context) int {
 }
 
 // Only returns a single User entity found by the query, ensuring it only returns one.
-// Returns a *NotSingularError when exactly one User entity is not found.
+// Returns a *NotSingularError when more than one User entity is found.
 // Returns a *NotFoundError when no User entities are found.
 func (uq *UserQuery) Only(ctx context.Context) (*User, error) {
 	nodes, err := uq.Limit(2).All(ctx)
@@ -185,7 +209,7 @@ func (uq *UserQuery) OnlyX(ctx context.Context) *User {
 }
 
 // OnlyID is like Only, but returns the only User ID in the query.
-// Returns a *NotSingularError when exactly one User ID is not found.
+// Returns a *NotSingularError when more than one User ID is found.
 // Returns a *NotFoundError when no entities are found.
 func (uq *UserQuery) OnlyID(ctx context.Context) (id int, err error) {
 	var ids []int
@@ -295,9 +319,11 @@ func (uq *UserQuery) Clone() *UserQuery {
 		predicates:     append([]predicate.User{}, uq.predicates...),
 		withBlogPosts:  uq.withBlogPosts.Clone(),
 		withProfilePic: uq.withProfilePic.Clone(),
+		withSkipEdge:   uq.withSkipEdge.Clone(),
 		// clone intermediate query.
-		sql:  uq.sql.Clone(),
-		path: uq.path,
+		sql:    uq.sql.Clone(),
+		path:   uq.path,
+		unique: uq.unique,
 	}
 }
 
@@ -320,6 +346,17 @@ func (uq *UserQuery) WithProfilePic(opts ...func(*ImageQuery)) *UserQuery {
 		opt(query)
 	}
 	uq.withProfilePic = query
+	return uq
+}
+
+// WithSkipEdge tells the query-builder to eager-load the nodes that are connected to
+// the "skip_edge" edge. The optional arguments are used to configure the query builder of the edge.
+func (uq *UserQuery) WithSkipEdge(opts ...func(*SkipEdgeExampleQuery)) *UserQuery {
+	query := &SkipEdgeExampleQuery{config: uq.config}
+	for _, opt := range opts {
+		opt(query)
+	}
+	uq.withSkipEdge = query
 	return uq
 }
 
@@ -389,9 +426,10 @@ func (uq *UserQuery) sqlAll(ctx context.Context) ([]*User, error) {
 		nodes       = []*User{}
 		withFKs     = uq.withFKs
 		_spec       = uq.querySpec()
-		loadedTypes = [2]bool{
+		loadedTypes = [3]bool{
 			uq.withBlogPosts != nil,
 			uq.withProfilePic != nil,
+			uq.withSkipEdge != nil,
 		}
 	)
 	if uq.withProfilePic != nil {
@@ -475,6 +513,34 @@ func (uq *UserQuery) sqlAll(ctx context.Context) ([]*User, error) {
 			for i := range nodes {
 				nodes[i].Edges.ProfilePic = n
 			}
+		}
+	}
+
+	if query := uq.withSkipEdge; query != nil {
+		fks := make([]driver.Value, 0, len(nodes))
+		nodeids := make(map[int]*User)
+		for i := range nodes {
+			fks = append(fks, nodes[i].ID)
+			nodeids[nodes[i].ID] = nodes[i]
+		}
+		query.withFKs = true
+		query.Where(predicate.SkipEdgeExample(func(s *sql.Selector) {
+			s.Where(sql.InValues(user.SkipEdgeColumn, fks...))
+		}))
+		neighbors, err := query.All(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, n := range neighbors {
+			fk := n.user_skip_edge
+			if fk == nil {
+				return nil, fmt.Errorf(`foreign-key "user_skip_edge" is nil for node %v`, n.ID)
+			}
+			node, ok := nodeids[*fk]
+			if !ok {
+				return nil, fmt.Errorf(`unexpected foreign-key "user_skip_edge" returned %v for node %v`, *fk, n.ID)
+			}
+			node.Edges.SkipEdge = n
 		}
 	}
 

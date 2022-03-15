@@ -20,8 +20,7 @@
             "in": "query",
             "description": "what page to render",
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           },
           {
@@ -29,8 +28,7 @@
             "in": "query",
             "description": "item count to render per page",
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           }
         ],
@@ -53,6 +51,9 @@
           },
           "404": {
             "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
           },
           "500": {
             "$ref": "#/components/responses/500"
@@ -120,6 +121,9 @@
           "400": {
             "$ref": "#/components/responses/400"
           },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
           "500": {
             "$ref": "#/components/responses/500"
           }
@@ -162,6 +166,9 @@
           "404": {
             "$ref": "#/components/responses/404"
           },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
           "500": {
             "$ref": "#/components/responses/500"
           }
@@ -194,6 +201,9 @@
           },
           "404": {
             "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
           },
           "500": {
             "$ref": "#/components/responses/500"
@@ -275,6 +285,9 @@
           "404": {
             "$ref": "#/components/responses/404"
           },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
           "500": {
             "$ref": "#/components/responses/500"
           }
@@ -304,8 +317,7 @@
             "in": "query",
             "description": "what page to render",
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           },
           {
@@ -313,8 +325,7 @@
             "in": "query",
             "description": "item count to render per page",
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           }
         ],
@@ -338,82 +349,8 @@
           "404": {
             "$ref": "#/components/responses/404"
           },
-          "500": {
-            "$ref": "#/components/responses/500"
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "User"
-        ],
-        "summary": "Create a new User and attach it to the User",
-        "description": "Creates a new User and attaches it to the User",
-        "operationId": "createUserChildren",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "ID of the User",
-            "schema": {
-              "type": "integer"
-            },
-            "required": true
-          }
-        ],
-        "requestBody": {
-          "description": "User to create",
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "friends": {
-                    "type": "array",
-                    "items": {
-                      "type": "integer"
-                    }
-                  },
-                  "followers": {
-                    "type": "array",
-                    "items": {
-                      "type": "integer"
-                    }
-                  },
-                  "following": {
-                    "type": "array",
-                    "items": {
-                      "type": "integer"
-                    }
-                  },
-                  "parent": {
-                    "type": "integer"
-                  },
-                  "children": {
-                    "type": "array",
-                    "items": {
-                      "type": "integer"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "User created and attached to the User",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/User_ChildrenCreate"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/400"
+          "409": {
+            "$ref": "#/components/responses/409"
           },
           "500": {
             "$ref": "#/components/responses/500"
@@ -444,8 +381,7 @@
             "in": "query",
             "description": "what page to render",
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           },
           {
@@ -453,8 +389,7 @@
             "in": "query",
             "description": "item count to render per page",
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           }
         ],
@@ -478,82 +413,8 @@
           "404": {
             "$ref": "#/components/responses/404"
           },
-          "500": {
-            "$ref": "#/components/responses/500"
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "User"
-        ],
-        "summary": "Create a new User and attach it to the User",
-        "description": "Creates a new User and attaches it to the User",
-        "operationId": "createUserFollowers",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "ID of the User",
-            "schema": {
-              "type": "integer"
-            },
-            "required": true
-          }
-        ],
-        "requestBody": {
-          "description": "User to create",
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "friends": {
-                    "type": "array",
-                    "items": {
-                      "type": "integer"
-                    }
-                  },
-                  "followers": {
-                    "type": "array",
-                    "items": {
-                      "type": "integer"
-                    }
-                  },
-                  "following": {
-                    "type": "array",
-                    "items": {
-                      "type": "integer"
-                    }
-                  },
-                  "parent": {
-                    "type": "integer"
-                  },
-                  "children": {
-                    "type": "array",
-                    "items": {
-                      "type": "integer"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "User created and attached to the User",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/User_FollowersCreate"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/400"
+          "409": {
+            "$ref": "#/components/responses/409"
           },
           "500": {
             "$ref": "#/components/responses/500"
@@ -584,8 +445,7 @@
             "in": "query",
             "description": "what page to render",
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           },
           {
@@ -593,8 +453,7 @@
             "in": "query",
             "description": "item count to render per page",
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           }
         ],
@@ -618,82 +477,8 @@
           "404": {
             "$ref": "#/components/responses/404"
           },
-          "500": {
-            "$ref": "#/components/responses/500"
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "User"
-        ],
-        "summary": "Create a new User and attach it to the User",
-        "description": "Creates a new User and attaches it to the User",
-        "operationId": "createUserFollowing",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "ID of the User",
-            "schema": {
-              "type": "integer"
-            },
-            "required": true
-          }
-        ],
-        "requestBody": {
-          "description": "User to create",
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "friends": {
-                    "type": "array",
-                    "items": {
-                      "type": "integer"
-                    }
-                  },
-                  "followers": {
-                    "type": "array",
-                    "items": {
-                      "type": "integer"
-                    }
-                  },
-                  "following": {
-                    "type": "array",
-                    "items": {
-                      "type": "integer"
-                    }
-                  },
-                  "parent": {
-                    "type": "integer"
-                  },
-                  "children": {
-                    "type": "array",
-                    "items": {
-                      "type": "integer"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "User created and attached to the User",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/User_FollowingCreate"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/400"
+          "409": {
+            "$ref": "#/components/responses/409"
           },
           "500": {
             "$ref": "#/components/responses/500"
@@ -724,8 +509,7 @@
             "in": "query",
             "description": "what page to render",
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           },
           {
@@ -733,8 +517,7 @@
             "in": "query",
             "description": "item count to render per page",
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           }
         ],
@@ -758,82 +541,8 @@
           "404": {
             "$ref": "#/components/responses/404"
           },
-          "500": {
-            "$ref": "#/components/responses/500"
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "User"
-        ],
-        "summary": "Create a new User and attach it to the User",
-        "description": "Creates a new User and attaches it to the User",
-        "operationId": "createUserFriends",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "ID of the User",
-            "schema": {
-              "type": "integer"
-            },
-            "required": true
-          }
-        ],
-        "requestBody": {
-          "description": "User to create",
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "friends": {
-                    "type": "array",
-                    "items": {
-                      "type": "integer"
-                    }
-                  },
-                  "followers": {
-                    "type": "array",
-                    "items": {
-                      "type": "integer"
-                    }
-                  },
-                  "following": {
-                    "type": "array",
-                    "items": {
-                      "type": "integer"
-                    }
-                  },
-                  "parent": {
-                    "type": "integer"
-                  },
-                  "children": {
-                    "type": "array",
-                    "items": {
-                      "type": "integer"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "User created and attached to the User",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/User_FriendsCreate"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/400"
+          "409": {
+            "$ref": "#/components/responses/409"
           },
           "500": {
             "$ref": "#/components/responses/500"
@@ -877,115 +586,8 @@
           "404": {
             "$ref": "#/components/responses/404"
           },
-          "500": {
-            "$ref": "#/components/responses/500"
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "User"
-        ],
-        "summary": "Create a new User and attach it to the User",
-        "description": "Creates a new User and attaches it to the User",
-        "operationId": "createUserParent",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "ID of the User",
-            "schema": {
-              "type": "integer"
-            },
-            "required": true
-          }
-        ],
-        "requestBody": {
-          "description": "User to create",
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "friends": {
-                    "type": "array",
-                    "items": {
-                      "type": "integer"
-                    }
-                  },
-                  "followers": {
-                    "type": "array",
-                    "items": {
-                      "type": "integer"
-                    }
-                  },
-                  "following": {
-                    "type": "array",
-                    "items": {
-                      "type": "integer"
-                    }
-                  },
-                  "parent": {
-                    "type": "integer"
-                  },
-                  "children": {
-                    "type": "array",
-                    "items": {
-                      "type": "integer"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "User created and attached to the User",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/User_ParentCreate"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/400"
-          },
-          "500": {
-            "$ref": "#/components/responses/500"
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "User"
-        ],
-        "summary": "Delete the attached Parent",
-        "description": "Delete the attached Parent of the User with the given ID",
-        "operationId": "deleteUserParent",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "ID of the User",
-            "schema": {
-              "type": "integer"
-            },
-            "required": true
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Parent with requested ID was deleted"
-          },
-          "400": {
-            "$ref": "#/components/responses/400"
-          },
-          "404": {
-            "$ref": "#/components/responses/404"
+          "409": {
+            "$ref": "#/components/responses/409"
           },
           "500": {
             "$ref": "#/components/responses/500"
@@ -1295,29 +897,7 @@
           "id"
         ]
       },
-      "User_ChildrenCreate": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "id"
-        ]
-      },
       "User_ChildrenList": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "id"
-        ]
-      },
-      "User_FollowersCreate": {
         "type": "object",
         "properties": {
           "id": {
@@ -1339,17 +919,6 @@
           "id"
         ]
       },
-      "User_FollowingCreate": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "id"
-        ]
-      },
       "User_FollowingList": {
         "type": "object",
         "properties": {
@@ -1361,29 +930,7 @@
           "id"
         ]
       },
-      "User_FriendsCreate": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "id"
-        ]
-      },
       "User_FriendsList": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "id"
-        ]
-      },
-      "User_ParentCreate": {
         "type": "object",
         "properties": {
           "id": {
@@ -1415,14 +962,17 @@
               "type": "object",
               "properties": {
                 "code": {
-                  "type": "integer",
-                  "format": "int32"
+                  "type": "integer"
                 },
                 "status": {
                   "type": "string"
                 },
                 "errors": {}
-              }
+              },
+              "required": [
+                "code",
+                "status"
+              ]
             }
           }
         }
@@ -1435,14 +985,17 @@
               "type": "object",
               "properties": {
                 "code": {
-                  "type": "integer",
-                  "format": "int32"
+                  "type": "integer"
                 },
                 "status": {
                   "type": "string"
                 },
                 "errors": {}
-              }
+              },
+              "required": [
+                "code",
+                "status"
+              ]
             }
           }
         }
@@ -1455,14 +1008,17 @@
               "type": "object",
               "properties": {
                 "code": {
-                  "type": "integer",
-                  "format": "int32"
+                  "type": "integer"
                 },
                 "status": {
                   "type": "string"
                 },
                 "errors": {}
-              }
+              },
+              "required": [
+                "code",
+                "status"
+              ]
             }
           }
         }
@@ -1475,14 +1031,17 @@
               "type": "object",
               "properties": {
                 "code": {
-                  "type": "integer",
-                  "format": "int32"
+                  "type": "integer"
                 },
                 "status": {
                   "type": "string"
                 },
                 "errors": {}
-              }
+              },
+              "required": [
+                "code",
+                "status"
+              ]
             }
           }
         }
@@ -1495,14 +1054,17 @@
               "type": "object",
               "properties": {
                 "code": {
-                  "type": "integer",
-                  "format": "int32"
+                  "type": "integer"
                 },
                 "status": {
                   "type": "string"
                 },
                 "errors": {}
-              }
+              },
+              "required": [
+                "code",
+                "status"
+              ]
             }
           }
         }

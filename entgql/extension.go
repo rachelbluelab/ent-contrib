@@ -24,7 +24,12 @@ import (
 	"entgo.io/ent/entc"
 	"entgo.io/ent/entc/gen"
 	"entgo.io/ent/schema/field"
+	"github.com/99designs/gqlgen/api"
 	"github.com/99designs/gqlgen/codegen/config"
+	"github.com/99designs/gqlgen/plugin"
+	"github.com/99designs/gqlgen/plugin/federation"
+	"github.com/99designs/gqlgen/plugin/modelgen"
+	"github.com/99designs/gqlgen/plugin/resolvergen"
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/kinds"
@@ -32,6 +37,8 @@ import (
 	"github.com/graphql-go/graphql/language/printer"
 	"github.com/graphql-go/graphql/language/source"
 	"github.com/graphql-go/graphql/language/visitor"
+
+	ast2 "github.com/vektah/gqlparser/v2/ast"
 )
 
 type (
@@ -44,6 +51,9 @@ type (
 		hooks      []gen.Hook
 		templates  []*gen.Template
 		scalarFunc func(*gen.Field, gen.Op) string
+
+		schema *ast2.Schema
+		models map[string]string
 	}
 
 	// ExtensionOption allows for managing the Extension configuration
@@ -90,7 +100,7 @@ const GQLConfigAnnotation = "GQLConfig"
 //
 // Note that, enabling this option is recommended as it improves the
 // GraphQL integration,
-func WithConfigPath(path string) ExtensionOption {
+func WithConfigPath(path string, gqlgenOptions ...api.Option) ExtensionOption {
 	return func(ex *Extension) (err error) {
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -109,8 +119,39 @@ func WithConfigPath(path string) ExtensionOption {
 			return err
 		}
 		if cfg.Schema == nil {
+			// Copied from api/generate.go
+			// https://github.com/99designs/gqlgen/blob/47015f12e3aa26af251fec67eab50d3388c17efe/api/generate.go#L21-L57
+			var plugins []plugin.Plugin
+			if cfg.Model.IsDefined() {
+				plugins = append(plugins, modelgen.New())
+			}
+			plugins = append(plugins, resolvergen.New())
+			if cfg.Federation.IsDefined() {
+				plugins = append([]plugin.Plugin{federation.New()}, plugins...)
+			}
+			for _, opt := range gqlgenOptions {
+				opt(cfg, &plugins)
+			}
+			for _, p := range plugins {
+				if inj, ok := p.(plugin.EarlySourceInjector); ok {
+					if s := inj.InjectSourceEarly(); s != nil {
+						cfg.Sources = append(cfg.Sources, s)
+					}
+				}
+			}
 			if err := cfg.LoadSchema(); err != nil {
-				return err
+				return fmt.Errorf("failed to load schema: %w", err)
+			}
+			for _, p := range plugins {
+				if inj, ok := p.(plugin.LateSourceInjector); ok {
+					if s := inj.InjectSourceLate(cfg.Schema); s != nil {
+						cfg.Sources = append(cfg.Sources, s)
+					}
+				}
+			}
+			// LoadSchema again now we have everything.
+			if err := cfg.LoadSchema(); err != nil {
+				return fmt.Errorf("failed to load schema: %w", err)
 			}
 		}
 		ex.cfg = cfg
@@ -148,6 +189,14 @@ func WithWhereFilters(b bool) ExtensionOption {
 		} else if !b && exists && len(ex.templates) > 0 {
 			ex.templates = append(ex.templates[:i], ex.templates[i+1:]...)
 		}
+		return nil
+	}
+}
+
+// WithSchemaGenerator add a hook for generate GQL schema
+func WithSchemaGenerator() ExtensionOption {
+	return func(e *Extension) error {
+		e.hooks = append(e.hooks, e.genSchema())
 		return nil
 	}
 }
@@ -275,6 +324,31 @@ func (e *Extension) isInput(name string) bool {
 		return t.IsInputType()
 	}
 	return false
+}
+
+// genSchema returns a new hook for generating
+// the GraphQL schema from the graph.
+func (e *Extension) genSchema() gen.Hook {
+	return func(next gen.Generator) gen.Generator {
+		return gen.GenerateFunc(func(g *gen.Graph) error {
+			if err := next.Generate(g); err != nil {
+				return err
+			}
+
+			genSchema, err := newSchemaGenerator(g)
+			if err != nil {
+				return err
+			}
+			if e.schema, err = genSchema.prepareSchema(); err != nil {
+				return err
+			}
+			if e.models, err = genSchema.genModels(); err != nil {
+				return err
+			}
+
+			return nil
+		})
+	}
 }
 
 // genWhereInputs returns a new hook for generating

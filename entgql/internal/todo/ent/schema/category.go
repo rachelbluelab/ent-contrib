@@ -61,12 +61,15 @@ func (Category) Fields() []ent.Field {
 			Annotations(
 				entgql.Type("Uint64"),
 			),
+		field.Strings("strings").
+			Optional(),
 	}
 }
 
 // Edges of the Category.
 func (Category) Edges() []ent.Edge {
 	return []ent.Edge{
-		edge.To("todos", Todo.Type),
+		edge.To("todos", Todo.Type).
+			Annotations(entgql.Unbind()),
 	}
 }

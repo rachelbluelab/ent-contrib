@@ -22,6 +22,8 @@ type Tx struct {
 	NilExample *NilExampleClient
 	// Pet is the client for interacting with the Pet builders.
 	Pet *PetClient
+	// SkipEdgeExample is the client for interacting with the SkipEdgeExample builders.
+	SkipEdgeExample *SkipEdgeExampleClient
 	// Todo is the client for interacting with the Todo builders.
 	Todo *TodoClient
 	// User is the client for interacting with the User builders.
@@ -42,7 +44,7 @@ type Tx struct {
 }
 
 type (
-	// Committer is the interface that wraps the Committer method.
+	// Committer is the interface that wraps the Commit method.
 	Committer interface {
 		Commit(context.Context, *Tx) error
 	}
@@ -97,7 +99,7 @@ func (tx *Tx) OnCommit(f CommitHook) {
 }
 
 type (
-	// Rollbacker is the interface that wraps the Rollbacker method.
+	// Rollbacker is the interface that wraps the Rollback method.
 	Rollbacker interface {
 		Rollback(context.Context, *Tx) error
 	}
@@ -166,6 +168,7 @@ func (tx *Tx) init() {
 	tx.MultiWordSchema = NewMultiWordSchemaClient(tx.config)
 	tx.NilExample = NewNilExampleClient(tx.config)
 	tx.Pet = NewPetClient(tx.config)
+	tx.SkipEdgeExample = NewSkipEdgeExampleClient(tx.config)
 	tx.Todo = NewTodoClient(tx.config)
 	tx.User = NewUserClient(tx.config)
 }

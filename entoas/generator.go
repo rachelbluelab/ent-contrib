@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -98,7 +99,7 @@ func schemas(g *gen.Graph, spec *ogen.Spec) error {
 		// Loop over every view once more to add the edges.
 		for n, v := range vs {
 			for _, e := range v.Edges {
-				vn, err := viewNameEdge(strings.Split(n, "_")[0], e)
+				vn, err := ViewNameEdge(strings.Split(n, "_")[0], e)
 				if err != nil {
 					return err
 				}
@@ -156,9 +157,11 @@ func errorResponses(s *ogen.Spec) {
 			ogen.NewResponse().
 				SetDescription(d).
 				SetJSONContent(ogen.NewSchema().
-					AddOptionalProperties(
-						ogen.Int32().ToProperty("code"),
+					AddRequiredProperties(
+						ogen.Int().ToProperty("code"),
 						ogen.String().ToProperty("status"),
+					).
+					AddOptionalProperties(
 						ogen.NewSchema().ToProperty("errors"),
 					),
 				), // TODO(masseelch): Add examples once present https://github.com/ogen-go/ogen/issues/70
@@ -220,23 +223,9 @@ func paths(g *gen.Graph, spec *ogen.Spec) error {
 			if err != nil {
 				return err
 			}
-			// Create operation.
-			if contains(ops, OpCreate) {
-				path(spec, subRoot).Post, err = createEdgeOp(spec, n, e)
-				if err != nil {
-					return err
-				}
-			}
 			// Read operation.
 			if contains(ops, OpRead) {
 				path(spec, subRoot).Get, err = readEdgeOp(spec, n, e)
-				if err != nil {
-					return err
-				}
-			}
-			// Delete operation.
-			if contains(ops, OpDelete) {
-				path(spec, subRoot).Delete, err = deleteEdgeOp(spec, n, e)
 				if err != nil {
 					return err
 				}
@@ -270,7 +259,7 @@ func createOp(spec *ogen.Spec, n *gen.Type) (*ogen.Operation, error) {
 	if err != nil {
 		return nil, err
 	}
-	vn, err := viewName(n, OpCreate)
+	vn, err := ViewName(n, OpCreate)
 	if err != nil {
 		return nil, err
 	}
@@ -288,40 +277,7 @@ func createOp(spec *ogen.Spec, n *gen.Type) (*ogen.Operation, error) {
 		).
 		AddNamedResponses(
 			spec.RefResponse(strconv.Itoa(http.StatusBadRequest)),
-			spec.RefResponse(strconv.Itoa(http.StatusInternalServerError)),
-		)
-	return op, nil
-}
-
-// createEdgeOp returns the spec description for a create operation on a subresource.
-func createEdgeOp(spec *ogen.Spec, n *gen.Type, e *gen.Edge) (*ogen.Operation, error) {
-	id, err := pathParam(n)
-	if err != nil {
-		return nil, err
-	}
-	req, err := reqBody(e.Type, OpCreate)
-	if err != nil {
-		return nil, err
-	}
-	vn, err := edgeViewName(n, e, OpCreate)
-	if err != nil {
-		return nil, err
-	}
-	op := ogen.NewOperation().
-		SetSummary(fmt.Sprintf("Create a new %s and attach it to the %s", e.Type.Name, n.Name)).
-		SetDescription(fmt.Sprintf("Creates a new %s and attaches it to the %s", e.Type.Name, n.Name)).
-		AddTags(n.Name).
-		SetOperationID(string(OpCreate)+n.Name+strcase.UpperCamelCase(e.Name)).
-		SetRequestBody(req).
-		AddParameters(id).
-		AddResponse(
-			strconv.Itoa(http.StatusOK),
-			ogen.NewResponse().
-				SetDescription(fmt.Sprintf("%s created and attached to the %s", e.Type.Name, n.Name)).
-				SetJSONContent(spec.RefSchema(vn).Schema),
-		).
-		AddNamedResponses(
-			spec.RefResponse(strconv.Itoa(http.StatusBadRequest)),
+			spec.RefResponse(strconv.Itoa(http.StatusConflict)),
 			spec.RefResponse(strconv.Itoa(http.StatusInternalServerError)),
 		)
 	return op, nil
@@ -333,7 +289,7 @@ func readOp(spec *ogen.Spec, n *gen.Type) (*ogen.Operation, error) {
 	if err != nil {
 		return nil, err
 	}
-	vn, err := viewName(n, OpRead)
+	vn, err := ViewName(n, OpRead)
 	if err != nil {
 		return nil, err
 	}
@@ -351,6 +307,7 @@ func readOp(spec *ogen.Spec, n *gen.Type) (*ogen.Operation, error) {
 		).
 		AddNamedResponses(
 			spec.RefResponse(strconv.Itoa(http.StatusBadRequest)),
+			spec.RefResponse(strconv.Itoa(http.StatusConflict)),
 			spec.RefResponse(strconv.Itoa(http.StatusNotFound)),
 			spec.RefResponse(strconv.Itoa(http.StatusInternalServerError)),
 		)
@@ -366,7 +323,7 @@ func readEdgeOp(spec *ogen.Spec, n *gen.Type, e *gen.Edge) (*ogen.Operation, err
 	if err != nil {
 		return nil, err
 	}
-	vn, err := edgeViewName(n, e, OpRead)
+	vn, err := EdgeViewName(n, e, OpRead)
 	if err != nil {
 		return nil, err
 	}
@@ -384,6 +341,7 @@ func readEdgeOp(spec *ogen.Spec, n *gen.Type, e *gen.Edge) (*ogen.Operation, err
 		).
 		AddNamedResponses(
 			spec.RefResponse(strconv.Itoa(http.StatusBadRequest)),
+			spec.RefResponse(strconv.Itoa(http.StatusConflict)),
 			spec.RefResponse(strconv.Itoa(http.StatusNotFound)),
 			spec.RefResponse(strconv.Itoa(http.StatusInternalServerError)),
 		)
@@ -400,7 +358,7 @@ func updateOp(spec *ogen.Spec, n *gen.Type) (*ogen.Operation, error) {
 	if err != nil {
 		return nil, err
 	}
-	vn, err := viewName(n, OpUpdate)
+	vn, err := ViewName(n, OpUpdate)
 	if err != nil {
 		return nil, err
 	}
@@ -419,6 +377,7 @@ func updateOp(spec *ogen.Spec, n *gen.Type) (*ogen.Operation, error) {
 		).
 		AddNamedResponses(
 			spec.RefResponse(strconv.Itoa(http.StatusBadRequest)),
+			spec.RefResponse(strconv.Itoa(http.StatusConflict)),
 			spec.RefResponse(strconv.Itoa(http.StatusNotFound)),
 			spec.RefResponse(strconv.Itoa(http.StatusInternalServerError)),
 		)
@@ -444,36 +403,7 @@ func deleteOp(spec *ogen.Spec, n *gen.Type) (*ogen.Operation, error) {
 		).
 		AddNamedResponses(
 			spec.RefResponse(strconv.Itoa(http.StatusBadRequest)),
-			spec.RefResponse(strconv.Itoa(http.StatusNotFound)),
-			spec.RefResponse(strconv.Itoa(http.StatusInternalServerError)),
-		)
-	return op, nil
-}
-
-// deleteEdgeOp returns the spec description for a delete operation on a subresource.
-func deleteEdgeOp(spec *ogen.Spec, n *gen.Type, e *gen.Edge) (*ogen.Operation, error) {
-	if !e.Unique {
-		return nil, errors.New("delete operations are not allowed on non unique edges")
-	}
-	id, err := pathParam(n)
-	if err != nil {
-		return nil, err
-	}
-	op := ogen.NewOperation().
-		SetSummary(fmt.Sprintf("Delete the attached %s", strcase.UpperCamelCase(e.Name))).
-		SetDescription(
-			fmt.Sprintf("Delete the attached %s of the %s with the given ID", strcase.UpperCamelCase(e.Name), n.Name),
-		).
-		AddTags(n.Name).
-		SetOperationID(string(OpDelete)+n.Name+strcase.UpperCamelCase(e.Name)).
-		AddParameters(id).
-		AddResponse(
-			strconv.Itoa(http.StatusNoContent),
-			ogen.NewResponse().
-				SetDescription(fmt.Sprintf("%s with requested ID was deleted", strcase.UpperCamelCase(e.Name))),
-		).
-		AddNamedResponses(
-			spec.RefResponse(strconv.Itoa(http.StatusBadRequest)),
+			spec.RefResponse(strconv.Itoa(http.StatusConflict)),
 			spec.RefResponse(strconv.Itoa(http.StatusNotFound)),
 			spec.RefResponse(strconv.Itoa(http.StatusInternalServerError)),
 		)
@@ -482,7 +412,7 @@ func deleteEdgeOp(spec *ogen.Spec, n *gen.Type, e *gen.Edge) (*ogen.Operation, e
 
 // listOp returns a spec.OperationConfig for a list operation on the given node.
 func listOp(spec *ogen.Spec, n *gen.Type) (*ogen.Operation, error) {
-	vn, err := viewName(n, OpList)
+	vn, err := ViewName(n, OpList)
 	if err != nil {
 		return nil, err
 	}
@@ -496,12 +426,12 @@ func listOp(spec *ogen.Spec, n *gen.Type) (*ogen.Operation, error) {
 				InQuery().
 				SetName("page").
 				SetDescription("what page to render").
-				SetSchema(ogen.Int32()),
+				SetSchema(ogen.Int()),
 			ogen.NewParameter().
 				InQuery().
 				SetName("itemsPerPage").
 				SetDescription("item count to render per page").
-				SetSchema(ogen.Int32()),
+				SetSchema(ogen.Int()),
 		).
 		AddResponse(
 			strconv.Itoa(http.StatusOK),
@@ -511,6 +441,7 @@ func listOp(spec *ogen.Spec, n *gen.Type) (*ogen.Operation, error) {
 		).
 		AddNamedResponses(
 			spec.RefResponse(strconv.Itoa(http.StatusBadRequest)),
+			spec.RefResponse(strconv.Itoa(http.StatusConflict)),
 			spec.RefResponse(strconv.Itoa(http.StatusNotFound)),
 			spec.RefResponse(strconv.Itoa(http.StatusInternalServerError)),
 		)
@@ -526,7 +457,7 @@ func listEdgeOp(spec *ogen.Spec, n *gen.Type, e *gen.Edge) (*ogen.Operation, err
 	if err != nil {
 		return nil, err
 	}
-	vn, err := edgeViewName(n, e, OpList)
+	vn, err := EdgeViewName(n, e, OpList)
 	if err != nil {
 		return nil, err
 	}
@@ -541,12 +472,12 @@ func listEdgeOp(spec *ogen.Spec, n *gen.Type, e *gen.Edge) (*ogen.Operation, err
 				InQuery().
 				SetName("page").
 				SetDescription("what page to render").
-				SetSchema(ogen.Int32()),
+				SetSchema(ogen.Int()),
 			ogen.NewParameter().
 				InQuery().
 				SetName("itemsPerPage").
 				SetDescription("item count to render per page").
-				SetSchema(ogen.Int32()),
+				SetSchema(ogen.Int()),
 		).
 		AddResponse(
 			strconv.Itoa(http.StatusOK),
@@ -556,6 +487,7 @@ func listEdgeOp(spec *ogen.Spec, n *gen.Type, e *gen.Edge) (*ogen.Operation, err
 		).
 		AddNamedResponses(
 			spec.RefResponse(strconv.Itoa(http.StatusBadRequest)),
+			spec.RefResponse(strconv.Itoa(http.StatusConflict)),
 			spec.RefResponse(strconv.Itoa(http.StatusNotFound)),
 			spec.RefResponse(strconv.Itoa(http.StatusInternalServerError)),
 		)
@@ -564,7 +496,7 @@ func listEdgeOp(spec *ogen.Spec, n *gen.Type, e *gen.Edge) (*ogen.Operation, err
 
 // property creates an ogen.Property out of an ent schema field.
 func property(f *gen.Field) (*ogen.Property, error) {
-	s, err := ogenSchema(f)
+	s, err := OgenSchema(f)
 	if err != nil {
 		return nil, err
 	}
@@ -591,8 +523,8 @@ var _types = map[string]*ogen.Schema{
 	"float64":   ogen.Double(),
 }
 
-// ogenSchema returns the ogen.Schema to use for the given gen.Field.
-func ogenSchema(f *gen.Field) (*ogen.Schema, error) {
+// OgenSchema returns the ogen.Schema to use for the given gen.Field.
+func OgenSchema(f *gen.Field) (*ogen.Schema, error) {
 	// If there is a custom property given on the field use it.
 	ant, err := FieldAnnotation(f)
 	if err != nil {
@@ -667,6 +599,9 @@ func NodeOperations(n *gen.Type) ([]Operation, error) {
 				continue
 			}
 		}
+		sort.Slice(ops, func(i, j int) bool {
+			return ops[i] < ops[j]
+		})
 		return ops, nil
 	}
 }
@@ -682,9 +617,9 @@ func EdgeOperations(e *gen.Edge) ([]Operation, error) {
 	if e.Annotations == nil || e.Annotations[ant.Name()] == nil {
 		if c.DefaultPolicy == PolicyExpose {
 			if e.Unique {
-				return []Operation{OpCreate, OpRead, OpDelete}, nil
+				return []Operation{OpRead}, nil
 			} else {
-				return []Operation{OpCreate, OpList}, nil
+				return []Operation{OpList}, nil
 			}
 		}
 		return nil, nil
@@ -698,11 +633,8 @@ func EdgeOperations(e *gen.Edge) ([]Operation, error) {
 		var ops []Operation
 		m := make(map[Operation]OperationConfig)
 		if e.Unique {
-			m[OpCreate] = ant.Create
 			m[OpRead] = ant.Read
-			m[OpDelete] = ant.Delete
 		} else {
-			m[OpCreate] = ant.Create
 			m[OpList] = ant.List
 		}
 		for op, opn := range m {
@@ -711,6 +643,9 @@ func EdgeOperations(e *gen.Edge) ([]Operation, error) {
 				continue
 			}
 		}
+		sort.Slice(ops, func(i, j int) bool {
+			return ops[i] < ops[j]
+		})
 		return ops, nil
 	}
 }
@@ -733,18 +668,18 @@ func reqBody(n *gen.Type, op Operation) (*ogen.RequestBody, error) {
 			if err != nil {
 				return nil, err
 			}
-			addProperty(c, p, !f.Optional)
+			addProperty(c, p, op == OpCreate && !f.Optional)
 		}
 	}
 	for _, e := range n.Edges {
-		s, err := ogenSchema(e.Type.ID)
+		s, err := OgenSchema(e.Type.ID)
 		if err != nil {
 			return nil, err
 		}
 		if !e.Unique {
 			s = s.AsArray()
 		}
-		addProperty(c, s.ToProperty(e.Name), !e.Optional)
+		addProperty(c, s.ToProperty(e.Name), op == OpCreate && !e.Optional)
 	}
 	req.SetJSONContent(c)
 	return req, nil
@@ -777,7 +712,7 @@ func contains(xs []Operation, s Operation) bool {
 
 // pathParam creates a new Parameter in path for the ID of gen.Type.
 func pathParam(n *gen.Type) (*ogen.Parameter, error) {
-	t, err := ogenSchema(n.ID)
+	t, err := OgenSchema(n.ID)
 	if err != nil {
 		return nil, err
 	}

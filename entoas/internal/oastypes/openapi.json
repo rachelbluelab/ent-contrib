@@ -20,8 +20,7 @@
             "in": "query",
             "description": "what page to render",
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           },
           {
@@ -29,8 +28,7 @@
             "in": "query",
             "description": "item count to render per page",
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           }
         ],
@@ -53,6 +51,9 @@
           },
           "404": {
             "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
           },
           "500": {
             "$ref": "#/components/responses/500"
@@ -233,6 +234,9 @@
           "400": {
             "$ref": "#/components/responses/400"
           },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
           "500": {
             "$ref": "#/components/responses/500"
           }
@@ -275,6 +279,9 @@
           "404": {
             "$ref": "#/components/responses/404"
           },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
           "500": {
             "$ref": "#/components/responses/500"
           }
@@ -307,6 +314,9 @@
           },
           "404": {
             "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
           },
           "500": {
             "$ref": "#/components/responses/500"
@@ -450,35 +460,7 @@
                   "other": {
                     "type": "string"
                   }
-                },
-                "required": [
-                  "int",
-                  "int8",
-                  "int16",
-                  "int32",
-                  "int64",
-                  "uint",
-                  "uint8",
-                  "uint16",
-                  "uint32",
-                  "uint64",
-                  "float32",
-                  "float64",
-                  "string_field",
-                  "bool",
-                  "uuid",
-                  "time",
-                  "text",
-                  "state",
-                  "strings",
-                  "ints",
-                  "floats",
-                  "bytes",
-                  "nicknames",
-                  "json_slice",
-                  "json_obj",
-                  "other"
-                ]
+                }
               }
             }
           },
@@ -500,6 +482,9 @@
           },
           "404": {
             "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
           },
           "500": {
             "$ref": "#/components/responses/500"
@@ -669,14 +654,17 @@
               "type": "object",
               "properties": {
                 "code": {
-                  "type": "integer",
-                  "format": "int32"
+                  "type": "integer"
                 },
                 "status": {
                   "type": "string"
                 },
                 "errors": {}
-              }
+              },
+              "required": [
+                "code",
+                "status"
+              ]
             }
           }
         }
@@ -689,14 +677,17 @@
               "type": "object",
               "properties": {
                 "code": {
-                  "type": "integer",
-                  "format": "int32"
+                  "type": "integer"
                 },
                 "status": {
                   "type": "string"
                 },
                 "errors": {}
-              }
+              },
+              "required": [
+                "code",
+                "status"
+              ]
             }
           }
         }
@@ -709,14 +700,17 @@
               "type": "object",
               "properties": {
                 "code": {
-                  "type": "integer",
-                  "format": "int32"
+                  "type": "integer"
                 },
                 "status": {
                   "type": "string"
                 },
                 "errors": {}
-              }
+              },
+              "required": [
+                "code",
+                "status"
+              ]
             }
           }
         }
@@ -729,14 +723,17 @@
               "type": "object",
               "properties": {
                 "code": {
-                  "type": "integer",
-                  "format": "int32"
+                  "type": "integer"
                 },
                 "status": {
                   "type": "string"
                 },
                 "errors": {}
-              }
+              },
+              "required": [
+                "code",
+                "status"
+              ]
             }
           }
         }
@@ -749,14 +746,17 @@
               "type": "object",
               "properties": {
                 "code": {
-                  "type": "integer",
-                  "format": "int32"
+                  "type": "integer"
                 },
                 "status": {
                   "type": "string"
                 },
                 "errors": {}
-              }
+              },
+              "required": [
+                "code",
+                "status"
+              ]
             }
           }
         }

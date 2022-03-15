@@ -25,6 +25,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/schema/field"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -51,9 +52,9 @@ func TestFromFieldDescriptor(t *testing.T) {
 			expected: `field.Int64("x")`,
 		},
 		{
-			name:           "unsupported type",
-			field:          field.JSON("json_field", &SomeJSON{}),
-			expectedErrMsg: "schemast: unsupported type TypeJSON",
+			name:     "json",
+			field:    field.JSON("json_field", struct{}{}),
+			expected: `field.JSON("json_field", struct{}{})`,
 		},
 		{
 			name:     "time",
@@ -132,6 +133,16 @@ func TestFromFieldDescriptor(t *testing.T) {
 			}),
 			expectedErrMsg: "schemast: unsupported feature Descriptor.Validators",
 		},
+		{
+			name:     "bytes",
+			field:    field.Bytes("x"),
+			expected: `field.Bytes("x")`,
+		},
+		{
+			name:     "uuid",
+			field:    field.UUID("x", uuid.UUID{}),
+			expected: `field.UUID("x", uuid.UUID{})`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -149,9 +160,6 @@ func TestFromFieldDescriptor(t *testing.T) {
 			require.EqualValues(t, tt.expected, buf.String())
 		})
 	}
-}
-
-type SomeJSON struct {
 }
 
 type annotation string
