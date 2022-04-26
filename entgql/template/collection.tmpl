@@ -19,15 +19,15 @@ import (
 {{ $names := nodePaginationNames $node }}
 {{ $name := $names.Node }}
 
-{{ $receiver := $node.Receiver }}
+{{ $receiver := (printf "_%v" $node.Receiver) }}
 {{ $query := $node.QueryName }}
 // CollectFields tells the query-builder to eagerly load connected nodes by resolver context.
 func ({{ $receiver }} *{{ $query }}) CollectFields(ctx context.Context, satisfies ...string) (*{{ $query }}, error) {
-	_fc := graphql.GetFieldContext(ctx)
-	if _fc == nil {
+	fc := graphql.GetFieldContext(ctx)
+	if fc == nil {
 		return {{ $receiver }}, nil
 	}
-	if err := {{ $receiver }}.collectField(ctx, graphql.GetOperationContext(ctx), _fc.Field, nil, satisfies...); err != nil {
+	if err := {{ $receiver }}.collectField(ctx, graphql.GetOperationContext(ctx), fc.Field, nil, satisfies...); err != nil {
 		return nil, err
 	}
 	return {{ $receiver }}, nil
