@@ -31,11 +31,11 @@ import (
 
 // CollectFields tells the query-builder to eagerly load connected nodes by resolver context.
 func (c *CategoryQuery) CollectFields(ctx context.Context, satisfies ...string) (*CategoryQuery, error) {
-	fc := graphql.GetFieldContext(ctx)
-	if fc == nil {
+	_fc := graphql.GetFieldContext(ctx)
+	if _fc == nil {
 		return c, nil
 	}
-	if err := c.collectField(ctx, graphql.GetOperationContext(ctx), fc.Field, nil, satisfies...); err != nil {
+	if err := c.collectField(ctx, graphql.GetOperationContext(ctx), _fc.Field, nil, satisfies...); err != nil {
 		return nil, err
 	}
 	return c, nil
@@ -198,11 +198,11 @@ func newCategoryPaginateArgs(rv map[string]interface{}) *categoryPaginateArgs {
 
 // CollectFields tells the query-builder to eagerly load connected nodes by resolver context.
 func (gr *GroupQuery) CollectFields(ctx context.Context, satisfies ...string) (*GroupQuery, error) {
-	fc := graphql.GetFieldContext(ctx)
-	if fc == nil {
+	_fc := graphql.GetFieldContext(ctx)
+	if _fc == nil {
 		return gr, nil
 	}
-	if err := gr.collectField(ctx, graphql.GetOperationContext(ctx), fc.Field, nil, satisfies...); err != nil {
+	if err := gr.collectField(ctx, graphql.GetOperationContext(ctx), _fc.Field, nil, satisfies...); err != nil {
 		return nil, err
 	}
 	return gr, nil
@@ -351,11 +351,11 @@ func newGroupPaginateArgs(rv map[string]interface{}) *groupPaginateArgs {
 
 // CollectFields tells the query-builder to eagerly load connected nodes by resolver context.
 func (t *TodoQuery) CollectFields(ctx context.Context, satisfies ...string) (*TodoQuery, error) {
-	fc := graphql.GetFieldContext(ctx)
-	if fc == nil {
+	_fc := graphql.GetFieldContext(ctx)
+	if _fc == nil {
 		return t, nil
 	}
-	if err := t.collectField(ctx, graphql.GetOperationContext(ctx), fc.Field, nil, satisfies...); err != nil {
+	if err := t.collectField(ctx, graphql.GetOperationContext(ctx), _fc.Field, nil, satisfies...); err != nil {
 		return nil, err
 	}
 	return t, nil
@@ -536,11 +536,11 @@ func newTodoPaginateArgs(rv map[string]interface{}) *todoPaginateArgs {
 
 // CollectFields tells the query-builder to eagerly load connected nodes by resolver context.
 func (u *UserQuery) CollectFields(ctx context.Context, satisfies ...string) (*UserQuery, error) {
-	fc := graphql.GetFieldContext(ctx)
-	if fc == nil {
+	_fc := graphql.GetFieldContext(ctx)
+	if _fc == nil {
 		return u, nil
 	}
-	if err := u.collectField(ctx, graphql.GetOperationContext(ctx), fc.Field, nil, satisfies...); err != nil {
+	if err := u.collectField(ctx, graphql.GetOperationContext(ctx), _fc.Field, nil, satisfies...); err != nil {
 		return nil, err
 	}
 	return u, nil
