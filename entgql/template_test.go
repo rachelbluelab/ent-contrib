@@ -38,10 +38,10 @@ func TestFilterNodes(t *testing.T) {
 		{
 			Name: "SkippedType",
 			Annotations: map[string]interface{}{
-				annotationName: map[string]interface{}{"Skip": true},
+				annotationName: map[string]interface{}{"Skip": SkipAll},
 			},
 		},
-	})
+	}, SkipType)
 	require.NoError(t, err)
 	require.Equal(t, []*gen.Type{
 		{
@@ -74,18 +74,18 @@ func TestFilterEdges(t *testing.T) {
 			Name: "SkippedEdge",
 			Type: &gen.Type{},
 			Annotations: map[string]interface{}{
-				annotationName: map[string]interface{}{"Skip": true},
+				annotationName: map[string]interface{}{"Skip": SkipAll},
 			},
 		},
 		{
 			Name: "SkippedEdgeType",
 			Type: &gen.Type{
 				Annotations: map[string]interface{}{
-					annotationName: map[string]interface{}{"Skip": true},
+					annotationName: map[string]interface{}{"Skip": SkipAll},
 				},
 			},
 		},
-	})
+	}, SkipType)
 	require.NoError(t, err)
 	require.Equal(t, []*gen.Edge{
 		{
@@ -103,7 +103,7 @@ func TestFilterEdges(t *testing.T) {
 }
 
 func TestFieldCollections(t *testing.T) {
-	edges, err := fieldCollections([]*gen.Edge{
+	edges := []*gen.Edge{
 		{
 			Name: "Edge1",
 			Type: &gen.Type{
@@ -142,23 +142,23 @@ func TestFieldCollections(t *testing.T) {
 				},
 			},
 		},
-	})
+	}
+	collect, err := fieldCollections(edges)
 	require.NoError(t, err)
-
-	require.Equal(t, map[string]fieldCollection{
-		"Edge1": {
-			Name:    "Todo",
+	require.Equal(t, []*fieldCollection{
+		{
+			Edge:    edges[0],
 			Mapping: []string{"Edge1"},
 		},
-		"Edge2": {
-			Name:    "Todo",
+		{
+			Edge:    edges[1],
 			Mapping: []string{"Edge2"},
 		},
-		"EdgeMapping": {
-			Name:    "Todo",
+		{
+			Edge:    edges[3],
 			Mapping: []string{"field1", "field2"},
 		},
-	}, edges)
+	}, collect)
 
 	_, err = fieldCollections([]*gen.Edge{
 		{
@@ -191,10 +191,10 @@ func TestFilterFields(t *testing.T) {
 		{
 			Name: "SkippedField",
 			Annotations: map[string]interface{}{
-				annotationName: map[string]interface{}{"Skip": true},
+				annotationName: map[string]interface{}{"Skip": SkipAll},
 			},
 		},
-	})
+	}, SkipType)
 	require.NoError(t, err)
 	require.Equal(t, []*gen.Field{
 		{

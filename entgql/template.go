@@ -26,6 +26,7 @@ import (
 
 	"entgo.io/ent/entc/gen"
 	"entgo.io/ent/schema/field"
+	"github.com/vektah/gqlparser/v2/ast"
 )
 
 var (
@@ -68,9 +69,13 @@ var (
 		"fieldCollections":    fieldCollections,
 		"filterEdges":         filterEdges,
 		"filterFields":        filterFields,
+		"orderFields":         orderFields,
 		"filterNodes":         filterNodes,
 		"findIDType":          findIDType,
 		"nodePaginationNames": nodePaginationNames,
+		"skipMode":            skipModeFromString,
+		"isSkipMode":          isSkipMode,
+		"isRelayConn":         isRelayConn,
 	}
 
 	//go:embed template/*
@@ -88,7 +93,6 @@ func findIDType(nodes []*gen.Type, defaultType *field.TypeInfo) (*field.TypeInfo
 	t := defaultType
 	if len(nodes) > 0 {
 		t = nodes[0].ID.Type
-
 		// Ensure all id types have the same type.
 		for _, n := range nodes[1:] {
 			if n.ID.Type.Type != t.Type {
@@ -96,106 +100,137 @@ func findIDType(nodes []*gen.Type, defaultType *field.TypeInfo) (*field.TypeInfo
 			}
 		}
 	}
-
 	return t, nil
 }
 
 type fieldCollection struct {
-	Name    string
+	Edge    *gen.Edge
 	Mapping []string
 }
 
-func fieldCollections(edges []*gen.Edge) (map[string]fieldCollection, error) {
-	result := make(map[string]fieldCollection)
+func fieldCollections(edges []*gen.Edge) ([]*fieldCollection, error) {
+	collect := make([]*fieldCollection, 0, len(edges))
 	for _, e := range edges {
-		result[e.Name] = fieldCollection{
-			Name:    e.Type.Name,
-			Mapping: []string{e.Name},
-		}
-		ant := &Annotation{}
-		if e.Annotations == nil || e.Annotations[ant.Name()] == nil {
-			continue
-		}
-		if err := ant.Decode(e.Annotations[ant.Name()]); err != nil {
+		ant, err := annotation(e.Annotations)
+		if err != nil {
 			return nil, err
 		}
-		if ant.Unbind {
-			delete(result, e.Name)
-		}
-		if len(ant.Mapping) > 0 {
-			if _, bind := result[e.Name]; bind {
+		switch {
+		case len(ant.Mapping) > 0:
+			if !ant.Unbind {
 				return nil, errors.New("bind and mapping annotations are mutually exclusive")
 			}
-			result[e.Name] = fieldCollection{
-				Name:    e.Type.Name,
-				Mapping: ant.Mapping,
-			}
+			collect = append(collect, &fieldCollection{Edge: e, Mapping: ant.Mapping})
+		case !ant.Unbind:
+			collect = append(collect, &fieldCollection{Edge: e, Mapping: []string{e.Name}})
 		}
 	}
-	return result, nil
+	return collect, nil
 }
 
 // filterNodes filters out nodes that should not be included in the GraphQL schema.
-func filterNodes(nodes []*gen.Type) ([]*gen.Type, error) {
-	var filteredNodes []*gen.Type
+func filterNodes(nodes []*gen.Type, skip SkipMode) ([]*gen.Type, error) {
+	filteredNodes := make([]*gen.Type, 0, len(nodes))
 	for _, n := range nodes {
-		ant := &Annotation{}
-		if n.Annotations != nil && n.Annotations[ant.Name()] != nil {
-			if err := ant.Decode(n.Annotations[ant.Name()]); err != nil {
-				return nil, err
-			}
-			if ant.Skip {
-				continue
-			}
+		ant, err := annotation(n.Annotations)
+		if err != nil {
+			return nil, err
 		}
-		filteredNodes = append(filteredNodes, n)
+		if !ant.Skip.Is(skip) {
+			filteredNodes = append(filteredNodes, n)
+		}
 	}
 	return filteredNodes, nil
 }
 
 // filterEdges filters out edges that should not be included in the GraphQL schema.
-func filterEdges(edges []*gen.Edge) ([]*gen.Edge, error) {
-	var filteredEdges []*gen.Edge
+func filterEdges(edges []*gen.Edge, skip SkipMode) ([]*gen.Edge, error) {
+	filteredEdges := make([]*gen.Edge, 0, len(edges))
 	for _, e := range edges {
-		ant := &Annotation{}
-		if e.Annotations != nil && e.Annotations[ant.Name()] != nil {
-			if err := ant.Decode(e.Annotations[ant.Name()]); err != nil {
-				return nil, err
-			}
-			if ant.Skip {
-				continue
-			}
+		antE, err := annotation(e.Annotations)
+		if err != nil {
+			return nil, err
 		}
-		// Check if type is skipped
-		if e.Type.Annotations != nil && e.Type.Annotations[ant.Name()] != nil {
-			if err := ant.Decode(e.Type.Annotations[ant.Name()]); err != nil {
-				return nil, err
-			}
-			if ant.Skip {
-				continue
-			}
+		antT, err := annotation(e.Type.Annotations)
+		if err != nil {
+			return nil, err
 		}
-		filteredEdges = append(filteredEdges, e)
+		if !antE.Skip.Is(skip) && !antT.Skip.Is(skip) {
+			filteredEdges = append(filteredEdges, e)
+		}
 	}
 	return filteredEdges, nil
 }
 
 // filterFields filters out fields that should not be included in the GraphQL schema.
-func filterFields(fields []*gen.Field) ([]*gen.Field, error) {
-	var filteredFields []*gen.Field
+func filterFields(fields []*gen.Field, skip SkipMode) ([]*gen.Field, error) {
+	filteredFields := make([]*gen.Field, 0, len(fields))
 	for _, f := range fields {
-		ant := &Annotation{}
-		if f.Annotations != nil && f.Annotations[ant.Name()] != nil {
-			if err := ant.Decode(f.Annotations[ant.Name()]); err != nil {
-				return nil, err
-			}
-			if ant.Skip {
-				continue
-			}
+		ant, err := annotation(f.Annotations)
+		if err != nil {
+			return nil, err
 		}
-		filteredFields = append(filteredFields, f)
+		if !ant.Skip.Is(skip) {
+			filteredFields = append(filteredFields, f)
+		}
 	}
 	return filteredFields, nil
+}
+
+// orderFields returns the fields of the given node with the `OrderField` annotation.
+func orderFields(n *gen.Type) ([]*gen.Field, error) {
+	var ordered []*gen.Field
+	for _, f := range n.Fields {
+		ant, err := annotation(f.Annotations)
+		if err != nil {
+			return nil, err
+		}
+		if ant.OrderField == "" {
+			continue
+		}
+		if !f.Type.Comparable() {
+			return nil, fmt.Errorf("entgql: ordered field %s.%s must be comparable", n.Name, f.Name)
+		}
+		if ant.Skip.Is(SkipOrderField) {
+			return nil, fmt.Errorf("entgql: ordered field %s.%s cannot be skipped", n.Name, f.Name)
+		}
+		ordered = append(ordered, f)
+	}
+	return ordered, nil
+}
+
+// skipModeFromString returns SkipFlag from a string
+func skipModeFromString(s string) (SkipMode, error) {
+	switch s {
+	case "type":
+		return SkipType, nil
+	case "enum_field":
+		return SkipEnumField, nil
+	case "order_field":
+		return SkipOrderField, nil
+	case "where_input":
+		return SkipWhereInput, nil
+	}
+	return 0, fmt.Errorf("invalid skip mode: %s", s)
+}
+
+func isSkipMode(antSkip interface{}, m string) (bool, error) {
+	skip, err := skipModeFromString(m)
+	if err != nil || antSkip == nil {
+		return false, err
+	}
+	if raw, ok := antSkip.(float64); ok {
+		return SkipMode(raw).Is(skip), nil
+	}
+	return false, fmt.Errorf("invalid annotation skip: %v", antSkip)
+}
+
+func isRelayConn(e *gen.Edge) (bool, error) {
+	ant, err := annotation(e.Annotations)
+	if err != nil {
+		return false, err
+	}
+	return ant.RelayConnection, nil
 }
 
 // PaginationNames holds the names of the pagination fields.
@@ -205,26 +240,133 @@ type PaginationNames struct {
 	Node       string
 	Order      string
 	OrderField string
+	WhereInput string
+}
+
+func (p *PaginationNames) TypeDefs() []*ast.Definition {
+	return []*ast.Definition{
+		{
+			Name:        p.Edge,
+			Kind:        ast.Object,
+			Description: "An edge in a connection.",
+			Fields: []*ast.FieldDefinition{
+				{
+					Name:        "node",
+					Type:        ast.NamedType(p.Node, nil),
+					Description: "The item at the end of the edge.",
+				},
+				{
+					Name:        "cursor",
+					Type:        ast.NonNullNamedType("Cursor", nil),
+					Description: "A cursor for use in pagination.",
+				},
+			},
+		},
+		{
+			Name:        p.Connection,
+			Kind:        ast.Object,
+			Description: "A connection to a list of items.",
+			Fields: []*ast.FieldDefinition{
+				{
+					Name:        "edges",
+					Type:        ast.ListType(ast.NamedType(p.Edge, nil), nil),
+					Description: "A list of edges.",
+				},
+				{
+					Name:        "pageInfo",
+					Type:        ast.NonNullNamedType("PageInfo", nil),
+					Description: "Information to aid in pagination.",
+				},
+				{
+					Name: "totalCount",
+					Type: ast.NonNullNamedType("Int", nil),
+				},
+			},
+		},
+	}
+}
+
+func (p *PaginationNames) OrderByTypeDefs(enumOrderByValues []string) []*ast.Definition {
+	enumValues := make(ast.EnumValueList, 0, len(enumOrderByValues))
+	for _, v := range enumOrderByValues {
+		enumValues = append(enumValues, &ast.EnumValueDefinition{
+			Name: v,
+		})
+	}
+
+	return []*ast.Definition{
+		{
+			Name:       p.OrderField,
+			Kind:       ast.Enum,
+			EnumValues: enumValues,
+		},
+		{
+			Name: p.Order,
+			Kind: ast.InputObject,
+			Fields: ast.FieldList{
+				{
+					Name: "direction",
+					Type: ast.NonNullNamedType("OrderDirection", nil),
+					DefaultValue: &ast.Value{
+						Raw:  "ASC",
+						Kind: ast.EnumValue,
+					},
+				},
+				{
+					Name: "field",
+					Type: ast.NonNullNamedType(p.OrderField, nil),
+				},
+			},
+		},
+	}
+}
+
+func (p *PaginationNames) ConnectionField(name string) *ast.FieldDefinition {
+	def := &ast.FieldDefinition{
+		Name: name,
+		Type: ast.NonNullNamedType(p.Connection, nil),
+		Arguments: ast.ArgumentDefinitionList{
+			{Name: "after", Type: ast.NamedType(RelayCursor, nil)},
+			{Name: "first", Type: ast.NamedType("Int", nil)},
+			{Name: "before", Type: ast.NamedType(RelayCursor, nil)},
+			{Name: "last", Type: ast.NamedType("Int", nil)},
+			{Name: "orderBy", Type: ast.NamedType(p.Order, nil)},
+		},
+	}
+
+	return def
+}
+
+func gqlTypeFromNode(t *gen.Type) (gqlType string, ant *Annotation, err error) {
+	if ant, err = annotation(t.Annotations); err != nil {
+		return
+	}
+	gqlType = t.Name
+	if ant.Type != "" {
+		gqlType = ant.Type
+	}
+	return
 }
 
 // nodePaginationNames returns the names of the pagination types for the node.
 func nodePaginationNames(t *gen.Type) (*PaginationNames, error) {
-	node := t.Name
-	ant, err := decodeAnnotation(t.Annotations)
+	node, _, err := gqlTypeFromNode(t)
 	if err != nil {
 		return nil, err
 	}
-	if ant.Type != "" {
-		node = ant.Type
-	}
 
+	return paginationNames(node), nil
+}
+
+func paginationNames(node string) *PaginationNames {
 	return &PaginationNames{
 		Connection: fmt.Sprintf("%sConnection", node),
 		Edge:       fmt.Sprintf("%sEdge", node),
 		Node:       node,
 		Order:      fmt.Sprintf("%sOrder", node),
 		OrderField: fmt.Sprintf("%sOrderField", node),
-	}, nil
+		WhereInput: fmt.Sprintf("%sWhereInput", node),
+	}
 }
 
 // removeOldAssets removes files that were generated before v0.1.0.

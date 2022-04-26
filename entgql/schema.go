@@ -27,6 +27,8 @@ import (
 )
 
 const (
+	// QueryType is the name of the root Query object.
+	QueryType = "Query"
 	// OrderDirection is the name of enum OrderDirection
 	OrderDirection = "OrderDirection"
 	// RelayCursor is the name of the cursor type
@@ -94,7 +96,7 @@ type schemaGenerator struct {
 }
 
 func newSchemaGenerator(g *gen.Graph) (*schemaGenerator, error) {
-	nodes, err := filterNodes(g.Nodes)
+	nodes, err := filterNodes(g.Nodes, SkipType)
 	if err != nil {
 		return nil, err
 	}
@@ -108,129 +110,165 @@ func newSchemaGenerator(g *gen.Graph) (*schemaGenerator, error) {
 	}, nil
 }
 
-func (e *schemaGenerator) prepareSchema() (*ast.Schema, error) {
-	types, err := e.buildTypes()
+func (e *schemaGenerator) buildSchema(s *ast.Schema) error {
+	err := e.buildTypes(s)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	insertDefinitions(types, builtinTypes()...)
+	s.AddTypes(builtinTypes()...)
 	if e.relaySpec {
-		insertDefinitions(types, relayBuiltinTypes()...)
+		s.AddTypes(relayBuiltinTypes()...)
 	}
-	return &ast.Schema{
-		Types:      types,
-		Directives: directives,
-	}, nil
+
+	for name, d := range directives {
+		s.Directives[name] = d
+	}
+	return nil
 }
 
-func (e *schemaGenerator) buildTypes() (map[string]*ast.Definition, error) {
-	types := make(map[string]*ast.Definition)
-	var defaultInterfaces []string
+func (e *schemaGenerator) buildTypes(s *ast.Schema) error {
+	var (
+		defaultInterfaces []string
+		queryFields       ast.FieldList
+	)
 	if e.relaySpec {
 		defaultInterfaces = append(defaultInterfaces, "Node")
+
+		var (
+			idType  = ast.NonNullNamedType("ID", nil)
+			nodeDef = ast.NamedType(RelayNode, nil)
+		)
+		queryFields = append(queryFields,
+			&ast.FieldDefinition{
+				Name: "node",
+				Type: nodeDef,
+				Arguments: ast.ArgumentDefinitionList{
+					{Name: "id", Type: idType},
+				},
+			},
+			&ast.FieldDefinition{
+				Name: "nodes",
+				Arguments: ast.ArgumentDefinitionList{
+					{Name: "ids", Type: ast.NonNullListType(idType, nil)},
+				},
+				Type: ast.NonNullListType(nodeDef, nil),
+			},
+		)
 	}
+
 	for _, node := range e.nodes {
-		ant, err := decodeAnnotation(node.Annotations)
+		gqlType, ant, err := gqlTypeFromNode(node)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		if ant.Skip {
+		if ant.Skip.Is(SkipType) {
 			continue
 		}
 
 		fields, err := e.buildTypeFields(node)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		typ := &ast.Definition{
-			Name:       node.Name,
+			Name:       gqlType,
 			Kind:       ast.Object,
 			Fields:     fields,
 			Directives: e.buildDirectives(ant.Directives),
 			Interfaces: defaultInterfaces,
 		}
-		if ant.Type != "" {
-			typ.Name = ant.Type
+		if node.Name != gqlType {
 			typ.Directives = append(typ.Directives, goModel(e.entGoType(node.Name)))
 		}
 		if len(ant.Implements) > 0 {
 			typ.Interfaces = append(typ.Interfaces, ant.Implements...)
 		}
-		insertDefinitions(types, typ)
+		s.AddTypes(typ)
 
-		var enumOrderByValues ast.EnumValueList
+		var enumOrderByValues []string
 		for _, f := range node.Fields {
-			ant, err := decodeAnnotation(f.Annotations)
+			ant, err := annotation(f.Annotations)
 			if err != nil {
-				return nil, err
+				return err
 			}
-			if ant.Skip {
+			if ant.Skip.Is(SkipType) {
 				continue
 			}
 
 			// Check if this node has an OrderBy object
 			if ant.OrderField != "" {
-				enumOrderByValues = append(enumOrderByValues, &ast.EnumValueDefinition{
-					Name: ant.OrderField,
-				})
+				if ant.Skip.Is(SkipOrderField) {
+					return fmt.Errorf("entgql: ordered field %s.%s cannot be skipped", node.Name, f.Name)
+				}
+				enumOrderByValues = append(enumOrderByValues, ant.OrderField)
 			}
 
-			if f.IsEnum() {
+			if f.IsEnum() && !ant.Skip.Is(SkipEnumField) {
 				enum, err := e.buildEnum(f, ant)
 				if err != nil {
-					return nil, err
+					return err
 				}
-				insertDefinitions(types, enum)
+				s.AddTypes(enum)
+			}
+		}
+
+		for _, edge := range node.Edges {
+			ant, err := annotation(edge.Annotations)
+			if err != nil {
+				return err
+			}
+			if ant.Skip.Is(SkipType) {
+				continue
+			}
+			if ant.RelayConnection && edge.Unique {
+				return fmt.Errorf("RelayConnection cannot be defined on Unique edge: %s.%s", node.Name, edge.Name)
+			}
+			fields, err := e.buildEdge(edge, ant)
+			if err != nil {
+				return err
+			}
+			if len(fields) > 0 {
+				typ.Fields = append(typ.Fields, fields...)
 			}
 		}
 
 		if ant.RelayConnection {
 			if !e.relaySpec {
-				return nil, ErrRelaySpecDisabled
+				return ErrRelaySpecDisabled
 			}
 
-			defs, err := relayConnectionTypes(node)
-			if err != nil {
-				return nil, err
+			pagination := paginationNames(gqlType)
+
+			s.AddTypes(pagination.TypeDefs()...)
+			if len(enumOrderByValues) > 0 && !ant.Skip.Is(SkipOrderField) {
+				s.AddTypes(pagination.OrderByTypeDefs(enumOrderByValues)...)
 			}
 
-			insertDefinitions(types, defs...)
-			if enumOrderByValues != nil {
-				pagination, err := nodePaginationNames(node)
-				if err != nil {
-					return nil, err
-				}
-
-				insertDefinitions(types,
-					&ast.Definition{
-						Name:       pagination.OrderField,
-						Kind:       ast.Enum,
-						EnumValues: enumOrderByValues,
-					},
-					&ast.Definition{
-						Name: pagination.Order,
-						Kind: ast.InputObject,
-						Fields: ast.FieldList{
-							{
-								Name: "direction",
-								Type: ast.NonNullNamedType("OrderDirection", nil),
-								DefaultValue: &ast.Value{
-									Raw:  "ASC",
-									Kind: ast.EnumValue,
-								},
-							},
-							{
-								Name: "field",
-								Type: ast.NonNullNamedType(pagination.OrderField, nil),
-							},
-						},
-					},
-				)
+			if ant.QueryField != nil {
+				name := ant.QueryField.fieldName(gqlType)
+				def := pagination.ConnectionField(name)
+				def.Directives = e.buildDirectives(ant.QueryField.Directives)
+				queryFields = append(queryFields, def)
 			}
+		} else if ant.QueryField != nil {
+			name := ant.QueryField.fieldName(gqlType)
+			def := &ast.FieldDefinition{
+				Name: name,
+				Type: listNamedType(gqlType, false),
+			}
+			def.Directives = e.buildDirectives(ant.QueryField.Directives)
+			queryFields = append(queryFields, def)
 		}
 	}
 
-	return types, nil
+	if len(queryFields) > 0 {
+		s.AddTypes(&ast.Definition{
+			Name:   QueryType,
+			Kind:   ast.Object,
+			Fields: queryFields,
+		})
+	}
+
+	return nil
 }
 
 func (e *schemaGenerator) buildDirectives(directives []Directive) ast.DirectiveList {
@@ -255,7 +293,7 @@ func (e *schemaGenerator) buildDirectives(directives []Directive) ast.DirectiveL
 }
 
 func (e *schemaGenerator) buildEnum(f *gen.Field, ant *Annotation) (*ast.Definition, error) {
-	goType, ok := e.fieldGoType(f)
+	goType, ok := e.enumGoType(f)
 	if !ok {
 		return nil, fmt.Errorf("unexpected missing GoType info for enum %q", f.Name)
 	}
@@ -306,12 +344,56 @@ func (e *schemaGenerator) buildTypeFields(t *gen.Type) (ast.FieldList, error) {
 	return fields, nil
 }
 
-func (e *schemaGenerator) typeField(f *gen.Field, isID bool) ([]*ast.FieldDefinition, error) {
-	ant, err := decodeAnnotation(f.Annotations)
+func (e *schemaGenerator) buildEdge(edge *gen.Edge, edgeAnt *Annotation) ([]*ast.FieldDefinition, error) {
+	gqlType, ant, err := gqlTypeFromNode(edge.Type)
 	if err != nil {
 		return nil, err
 	}
-	if ant.Skip {
+
+	var (
+		edgeField = camel(edge.Name)
+		mappings  = []string{edgeField}
+	)
+	if len(edgeAnt.Mapping) > 0 {
+		mappings = edgeAnt.Mapping
+	}
+
+	var fields []*ast.FieldDefinition
+	for _, name := range mappings {
+		fieldDef := &ast.FieldDefinition{Name: name}
+		switch {
+		case edge.Unique:
+			fieldDef.Type = namedType(gqlType, edge.Optional)
+		case edgeAnt.RelayConnection:
+			if !e.relaySpec {
+				return nil, ErrRelaySpecDisabled
+			}
+			if !ant.RelayConnection {
+				return nil, fmt.Errorf("entgql: must enable Relay Connection via the entgql.RelayConnection annotation on the %s entity", edge.Type.Name)
+			}
+
+			fieldDef = paginationNames(gqlType).
+				ConnectionField(name)
+		default:
+			fieldDef.Type = listNamedType(gqlType, edge.Optional)
+		}
+
+		fieldDef.Directives = e.buildDirectives(edgeAnt.Directives)
+		if name != edgeField {
+			fieldDef.Directives = append(fieldDef.Directives, goField(edgeField))
+		}
+		fields = append(fields, fieldDef)
+	}
+
+	return fields, nil
+}
+
+func (e *schemaGenerator) typeField(f *gen.Field, isID bool) ([]*ast.FieldDefinition, error) {
+	ant, err := annotation(f.Annotations)
+	if err != nil {
+		return nil, err
+	}
+	if ant.Skip.Is(SkipType) {
 		return nil, nil
 	}
 
@@ -342,7 +424,7 @@ func (e *schemaGenerator) typeFromField(f *gen.Field, idField bool, userDefinedT
 	case userDefinedType != "":
 		return namedType(userDefinedType, nillable), nil
 	case idField:
-		return namedType("ID", !e.relaySpec && nillable), nil
+		return namedType("ID", false), nil
 	case typ.Float():
 		return namedType("Float", nillable), nil
 	case typ.Integer():
@@ -387,27 +469,23 @@ func (e *schemaGenerator) genModels() (map[string]string, error) {
 		models[RelayCursor] = e.entGoType(RelayCursor)
 	}
 	for _, node := range e.nodes {
-		ant, err := decodeAnnotation(node.Annotations)
+		gqlType, ant, err := gqlTypeFromNode(node)
 		if err != nil {
 			return nil, err
 		}
-		if ant.Skip {
+		if ant.Skip.Is(SkipType) {
 			continue
 		}
 
-		name := node.Name
-		if ant.Type != "" {
-			name = ant.Type
-		}
-		models[name] = e.entGoType(node.Name)
+		models[gqlType] = e.entGoType(node.Name)
 
 		var hasOrderBy bool
 		for _, field := range node.Fields {
-			ant, err := decodeAnnotation(field.Annotations)
+			ant, err := annotation(field.Annotations)
 			if err != nil {
 				return nil, err
 			}
-			if ant.Skip {
+			if ant.Skip.Is(SkipType) {
 				continue
 			}
 			// Check if this node has an OrderBy object
@@ -415,7 +493,8 @@ func (e *schemaGenerator) genModels() (map[string]string, error) {
 				hasOrderBy = true
 			}
 
-			goType, ok := e.fieldGoType(field)
+			// We only map the Go types generated by Ent, for example: enum.
+			goType, ok := e.enumGoType(field)
 			if !ok {
 				continue
 			}
@@ -456,15 +535,15 @@ func (e *schemaGenerator) entGoType(name string) string {
 	return fmt.Sprintf("%s.%s", e.graph.Package, name)
 }
 
-func (e *schemaGenerator) fieldGoType(f *gen.Field) (string, bool) {
-	switch {
-	case f.IsOther() || (f.IsEnum() && f.HasGoType()):
-		return fmt.Sprintf("%s.%s", f.Type.RType.PkgPath, f.Type.RType.Name), true
-	case f.IsEnum():
+func (e *schemaGenerator) enumGoType(f *gen.Field) (string, bool) {
+	if f.IsEnum() {
+		if f.HasGoType() {
+			return fmt.Sprintf("%s.%s", f.Type.RType.PkgPath, f.Type.RType.Name), true
+		}
 		return fmt.Sprintf("%s/%s", e.graph.Package, f.Type.Ident), true
-	default:
-		return "", false
 	}
+
+	return "", false
 }
 
 func builtinTypes() []*ast.Definition {
@@ -537,52 +616,7 @@ func relayConnectionTypes(t *gen.Type) ([]*ast.Definition, error) {
 	if err != nil {
 		return nil, err
 	}
-	return []*ast.Definition{
-		{
-			Name:        pagination.Edge,
-			Kind:        ast.Object,
-			Description: "An edge in a connection.",
-			Fields: []*ast.FieldDefinition{
-				{
-					Name:        "node",
-					Type:        ast.NamedType(pagination.Node, nil),
-					Description: "The item at the end of the edge.",
-				},
-				{
-					Name:        "cursor",
-					Type:        ast.NonNullNamedType("Cursor", nil),
-					Description: "A cursor for use in pagination.",
-				},
-			},
-		},
-		{
-			Name:        pagination.Connection,
-			Kind:        ast.Object,
-			Description: "A connection to a list of items.",
-			Fields: []*ast.FieldDefinition{
-				{
-					Name:        "edges",
-					Type:        ast.ListType(ast.NamedType(pagination.Edge, nil), nil),
-					Description: "A list of edges.",
-				},
-				{
-					Name:        "pageInfo",
-					Type:        ast.NonNullNamedType("PageInfo", nil),
-					Description: "Information to aid in pagination.",
-				},
-				{
-					Name: "totalCount",
-					Type: ast.NonNullNamedType("Int", nil),
-				},
-			},
-		},
-	}, nil
-}
-
-func insertDefinitions(types map[string]*ast.Definition, defs ...*ast.Definition) {
-	for _, d := range defs {
-		types[d.Name] = d
-	}
+	return pagination.TypeDefs(), nil
 }
 
 func namedType(name string, nullable bool) *ast.Type {
@@ -603,9 +637,32 @@ func listNamedType(name string, nullable bool) *ast.Type {
 func printSchema(schema *ast.Schema) string {
 	sb := &strings.Builder{}
 	formatter.
-		NewFormatter(sb).
+		NewFormatter(sb, formatter.WithIndent("  ")).
 		FormatSchema(schema)
 	return sb.String()
+}
+
+func goField(name string) *ast.Directive {
+	return &ast.Directive{
+		Name:     "goField",
+		Location: ast.LocationFieldDefinition,
+		Arguments: ast.ArgumentList{
+			{
+				Name: "name",
+				Value: &ast.Value{
+					Kind: ast.StringValue,
+					Raw:  name,
+				},
+			},
+			{
+				Name: "forceResolver",
+				Value: &ast.Value{
+					Kind: ast.BooleanValue,
+					Raw:  "false",
+				},
+			},
+		},
+	}
 }
 
 func goModel(ident string) *ast.Directive {

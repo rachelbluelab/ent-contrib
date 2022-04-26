@@ -26,7 +26,10 @@ import (
 func TestAnnotation(t *testing.T) {
 	t.Parallel()
 
-	a := Groups("create", "groups")
+	a := ReadOnly(true)
+	require.Equal(t, true, a.ReadOnly)
+
+	a = Groups("create", "groups")
 	require.Equal(t, serialization.Groups{"create", "groups"}, a.Groups)
 
 	a = CreateOperation(OperationGroups("create", "groups"), OperationPolicy(PolicyExpose))
@@ -60,6 +63,23 @@ func TestAnnotation(t *testing.T) {
 		},
 	}
 	require.Equal(t, ex, a)
+
+	a = a.Merge(ReadOnly(true)).(Annotation)
+	ex.ReadOnly = true
+	require.Equal(t, ex, a)
+
+	crOp := CreateOperation(OperationPolicy(PolicyExpose))
+	dlOp := DeleteOperation(OperationPolicy(PolicyExclude))
+	crdlEx := Annotation{
+		Create: OperationConfig{
+			Policy: PolicyExpose,
+		},
+		Delete: OperationConfig{
+			Policy: PolicyExclude,
+		},
+	}
+	crOp = crOp.Merge(dlOp).(Annotation)
+	require.Equal(t, crdlEx, crOp)
 
 	ac, err := SchemaAnnotation(new(gen.Type))
 	require.NoError(t, err)

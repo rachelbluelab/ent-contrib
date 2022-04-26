@@ -37,7 +37,7 @@ type (
 		// Type is the underlying GraphQL type name (e.g. Boolean).
 		Type string `json:"Type,omitempty"`
 		// Skip exclude the type
-		Skip bool `json:"Skip,omitempty"`
+		Skip SkipMode `json:"Skip,omitempty"`
 		// RelayConnection enables the Relay Connection specification for the entity.
 		// It's also can apply on an edge to create the Relay-style filter.
 		RelayConnection bool `json:"RelayConnection,omitempty"`
@@ -45,6 +45,8 @@ type (
 		Implements []string `json:"Implements,omitempty"`
 		// Directives to add on the field/type.
 		Directives []Directive `json:"Directives,omitempty"`
+		// QueryField exposes the generated type with the given string under the Query object.
+		QueryField *FieldConfig `json:"QueryField,omitempty"`
 	}
 
 	// Directive to apply on the field/type
@@ -59,6 +61,34 @@ type (
 		Value string        `json:"value,omitempty"`
 		Kind  ast.ValueKind `json:"kind,omitempty"`
 	}
+
+	// SkipMode is a bit flag for the Skip annotation.
+	SkipMode int
+
+	FieldConfig struct {
+		// Name is the name of the field in the Query object.
+		Name string `json:"Name,omitempty"`
+		// Directives to add on the field
+		Directives []Directive `json:"Directives,omitempty"`
+	}
+)
+
+const (
+	// SkipType skips generating GraphQL types or fields in the schema.
+	SkipType SkipMode = 1 << iota
+	// SkipEnumField skips generating GraphQL enums for enum fields in the schema.
+	SkipEnumField
+	// SkipOrderField skips generating GraphQL order inputs and enums for ordered-fields in the schema.
+	SkipOrderField
+	// SkipWhereInput skips generating GraphQL WhereInput types.
+	// If defined on a field, the type will be generated without the field.
+	SkipWhereInput
+
+	// SkipAll is default mode to skip all.
+	SkipAll = SkipType |
+		SkipEnumField |
+		SkipOrderField |
+		SkipWhereInput
 )
 
 // Name implements ent.Annotation interface.
@@ -105,8 +135,16 @@ func Type(name string) Annotation {
 }
 
 // Skip returns a skip annotation.
-func Skip() Annotation {
-	return Annotation{Skip: true}
+func Skip(flags ...SkipMode) Annotation {
+	if len(flags) == 0 {
+		return Annotation{Skip: SkipAll}
+	}
+
+	skip := SkipMode(0)
+	for _, f := range flags {
+		skip |= f
+	}
+	return Annotation{Skip: skip}
 }
 
 // RelayConnection returns a relay connection annotation.
@@ -124,6 +162,25 @@ func Directives(directives ...Directive) Annotation {
 	return Annotation{Directives: directives}
 }
 
+type queryFieldAnnotation struct {
+	Annotation
+}
+
+// QueryField returns an annotation for expose the field on the Query type.
+func QueryField(name ...string) queryFieldAnnotation {
+	a := Annotation{QueryField: &FieldConfig{}}
+	if len(name) > 0 {
+		a.QueryField.Name = name[0]
+	}
+	return queryFieldAnnotation{Annotation: a}
+}
+
+// Directives allow you apply directives to the field.
+func (a queryFieldAnnotation) Directives(directives ...Directive) queryFieldAnnotation {
+	a.QueryField.Directives = directives
+	return a
+}
+
 // Merge implements the schema.Merger interface.
 func (a Annotation) Merge(other schema.Annotation) schema.Annotation {
 	var ant Annotation
@@ -133,6 +190,12 @@ func (a Annotation) Merge(other schema.Annotation) schema.Annotation {
 	case *Annotation:
 		if other != nil {
 			ant = *other
+		}
+	case queryFieldAnnotation:
+		ant = other.Annotation
+	case *queryFieldAnnotation:
+		if other != nil {
+			ant = other.Annotation
 		}
 	default:
 		return a
@@ -149,8 +212,8 @@ func (a Annotation) Merge(other schema.Annotation) schema.Annotation {
 	if ant.Type != "" {
 		a.Type = ant.Type
 	}
-	if ant.Skip {
-		a.Skip = true
+	if ant.Skip.Any() {
+		a.Skip |= ant.Skip
 	}
 	if ant.RelayConnection {
 		a.RelayConnection = true
@@ -161,10 +224,16 @@ func (a Annotation) Merge(other schema.Annotation) schema.Annotation {
 	if len(ant.Directives) > 0 {
 		a.Directives = append(a.Directives, ant.Directives...)
 	}
+	if ant.QueryField != nil {
+		if a.QueryField == nil {
+			a.QueryField = &FieldConfig{}
+		}
+		a.QueryField.merge(ant.QueryField)
+	}
 	return a
 }
 
-// Decode unmarshal annotation
+// Decode unmarshalls the annotation.
 func (a *Annotation) Decode(annotation interface{}) error {
 	buf, err := json.Marshal(annotation)
 	if err != nil {
@@ -173,15 +242,40 @@ func (a *Annotation) Decode(annotation interface{}) error {
 	return json.Unmarshal(buf, a)
 }
 
-// decodeAnnotation decodes the annotation from the schema.
-func decodeAnnotation(annotations gen.Annotations) (*Annotation, error) {
-	ant := &Annotation{}
-	if annotations == nil || annotations[ant.Name()] == nil {
-		return ant, nil
-	}
+// Any returns true if the skip annotation was set.
+func (f SkipMode) Any() bool {
+	return f != 0
+}
 
-	if err := ant.Decode(annotations[ant.Name()]); err != nil {
-		return nil, err
+// Is checks if the skip annotation has a specific flag.
+func (f SkipMode) Is(mode SkipMode) bool {
+	return f&mode != 0
+}
+
+func (c FieldConfig) fieldName(gqlType string) string {
+	if c.Name != "" {
+		return c.Name
+	}
+	return camel(plural(gqlType))
+}
+
+func (c *FieldConfig) merge(ant *FieldConfig) {
+	if ant == nil {
+		return
+	}
+	if ant.Name != "" {
+		c.Name = ant.Name
+	}
+	c.Directives = append(c.Directives, ant.Directives...)
+}
+
+// annotation extracts the entgql.Annotation or returns its empty value.
+func annotation(ants gen.Annotations) (*Annotation, error) {
+	ant := &Annotation{}
+	if ants != nil && ants[ant.Name()] != nil {
+		if err := ant.Decode(ants[ant.Name()]); err != nil {
+			return nil, err
+		}
 	}
 	return ant, nil
 }
