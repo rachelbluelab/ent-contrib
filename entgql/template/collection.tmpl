@@ -22,16 +22,10 @@ import (
 {{ $receiver := $node.Receiver }}
 {{ $query := $node.QueryName }}
 // CollectFields tells the query-builder to eagerly load connected nodes by resolver context.
-<<<<<<< HEAD
-func ({{ $receiver }} *{{ $query }}) CollectFields(ctx context.Context, satisfies ...string) *{{ $query }} {
-	if _fc := graphql.GetFieldContext(ctx); _fc != nil {
-		{{ $receiver }} = {{ $receiver }}.collectField(graphql.GetOperationContext(ctx), _fc.Field, satisfies...)
-=======
 func ({{ $receiver }} *{{ $query }}) CollectFields(ctx context.Context, satisfies ...string) (*{{ $query }}, error) {
 	fc := graphql.GetFieldContext(ctx)
 	if fc == nil {
 		return {{ $receiver }}, nil
->>>>>>> ab4b0582814d156c11d2ad085cd772ade5dd731d
 	}
 	if err := {{ $receiver }}.collectField(ctx, graphql.GetOperationContext(ctx), fc.Field, nil, satisfies...); err != nil {
 		return nil, err
