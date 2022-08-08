@@ -15,16 +15,17 @@
 package schemast
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"entgo.io/ent/entc"
 	"entgo.io/ent/entc/gen"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -78,18 +79,45 @@ func TestPrintHeaderComment(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NoError(t, tt.print(Header("File updated by test.")))
-	contents, err := ioutil.ReadFile(filepath.Join(tt.schemaDir(), "message.go")) // A file that didn't have the header.
+	contents, err := os.ReadFile(filepath.Join(tt.schemaDir(), "message.go")) // A file that didn't have the header.
 	require.NoError(t, err)
 	require.Regexp(t, commentRegexp, string(contents))
 
-	contents, err = ioutil.ReadFile(filepath.Join(tt.schemaDir(), "user.go")) // A file that had the header, but not on the first line.
+	contents, err = os.ReadFile(filepath.Join(tt.schemaDir(), "user.go")) // A file that had the header, but not on the first line.
 	require.NoError(t, err)
 	matches := commentRegexp.FindAllString(string(contents), -1)
 	require.Len(t, matches, 1)
 }
 
+func TestPrintAddImport(t *testing.T) {
+	tt, err := newPrintTest(t)
+	require.NoError(t, err)
+
+	require.NoError(t, tt.ctx.AppendField("Message", field.UUID("uuid", uuid.UUID{}).Descriptor()))
+	require.NoError(t, tt.ctx.AppendField("Message", field.UUID("hash", uuid.UUID{}).Descriptor()))
+	require.NoError(t, tt.print())
+
+	contents, err := os.ReadFile(filepath.Join(tt.schemaDir(), "message.go"))
+	require.NoError(t, err)
+	matches := strings.Count(string(contents), "github.com/google/uuid")
+	require.Equal(t, matches, 1)
+}
+
+func TestPrintStructOnSameLine(t *testing.T) {
+	tt, err := newPrintTest(t)
+	require.NoError(t, err)
+
+	require.NoError(t, tt.ctx.AppendField("Message", field.String("name").Descriptor()))
+	require.NoError(t, tt.ctx.AppendField("Message", field.JSON("json", struct{}{}).Descriptor()))
+	require.NoError(t, tt.print())
+
+	contents, err := os.ReadFile(filepath.Join(tt.schemaDir(), "message.go"))
+	require.NoError(t, err)
+	require.Contains(t, string(contents), "struct{}{}")
+}
+
 func newPrintTest(t *testing.T) (*printTest, error) {
-	dir, err := ioutil.TempDir(".", "printtest-")
+	dir, err := os.MkdirTemp(".", "printtest-")
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +173,7 @@ func (p *printTest) getType(name string) *gen.Type {
 }
 
 func (p *printTest) contents(fname string) string {
-	file, err := ioutil.ReadFile(filepath.Join(p.schemaDir(), fname))
+	file, err := os.ReadFile(filepath.Join(p.schemaDir(), fname))
 	require.NoError(p.t, err)
 	return string(file)
 }

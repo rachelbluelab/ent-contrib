@@ -20,8 +20,7 @@
             "in": "query",
             "description": "what page to render",
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           },
           {
@@ -29,8 +28,7 @@
             "in": "query",
             "description": "item count to render per page",
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           }
         ],
@@ -53,6 +51,9 @@
           },
           "404": {
             "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
           },
           "500": {
             "$ref": "#/components/responses/500"
@@ -78,11 +79,15 @@
                   },
                   "int8": {
                     "type": "integer",
-                    "format": "int32"
+                    "format": "int32",
+                    "maximum": 127,
+                    "minimum": -128
                   },
                   "int16": {
                     "type": "integer",
-                    "format": "int32"
+                    "format": "int32",
+                    "maximum": 32767,
+                    "minimum": -32768
                   },
                   "int32": {
                     "type": "integer",
@@ -94,23 +99,32 @@
                   },
                   "uint": {
                     "type": "integer",
-                    "format": "int32"
+                    "format": "int64",
+                    "maximum": 4294967295,
+                    "minimum": 0
                   },
                   "uint8": {
                     "type": "integer",
-                    "format": "int32"
+                    "format": "int32",
+                    "maximum": 255,
+                    "minimum": 0
                   },
                   "uint16": {
                     "type": "integer",
-                    "format": "int32"
+                    "format": "int32",
+                    "maximum": 65535,
+                    "minimum": 0
                   },
                   "uint32": {
                     "type": "integer",
-                    "format": "int32"
+                    "format": "int64",
+                    "maximum": 4294967295,
+                    "minimum": 0
                   },
                   "uint64": {
                     "type": "integer",
-                    "format": "int64"
+                    "format": "int64",
+                    "minimum": 0
                   },
                   "float32": {
                     "type": "number",
@@ -233,6 +247,9 @@
           "400": {
             "$ref": "#/components/responses/400"
           },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
           "500": {
             "$ref": "#/components/responses/500"
           }
@@ -275,6 +292,9 @@
           "404": {
             "$ref": "#/components/responses/404"
           },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
           "500": {
             "$ref": "#/components/responses/500"
           }
@@ -307,6 +327,9 @@
           },
           "404": {
             "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
           },
           "500": {
             "$ref": "#/components/responses/500"
@@ -343,11 +366,15 @@
                   },
                   "int8": {
                     "type": "integer",
-                    "format": "int32"
+                    "format": "int32",
+                    "maximum": 127,
+                    "minimum": -128
                   },
                   "int16": {
                     "type": "integer",
-                    "format": "int32"
+                    "format": "int32",
+                    "maximum": 32767,
+                    "minimum": -32768
                   },
                   "int32": {
                     "type": "integer",
@@ -359,23 +386,32 @@
                   },
                   "uint": {
                     "type": "integer",
-                    "format": "int32"
+                    "format": "int64",
+                    "maximum": 4294967295,
+                    "minimum": 0
                   },
                   "uint8": {
                     "type": "integer",
-                    "format": "int32"
+                    "format": "int32",
+                    "maximum": 255,
+                    "minimum": 0
                   },
                   "uint16": {
                     "type": "integer",
-                    "format": "int32"
+                    "format": "int32",
+                    "maximum": 65535,
+                    "minimum": 0
                   },
                   "uint32": {
                     "type": "integer",
-                    "format": "int32"
+                    "format": "int64",
+                    "maximum": 4294967295,
+                    "minimum": 0
                   },
                   "uint64": {
                     "type": "integer",
-                    "format": "int64"
+                    "format": "int64",
+                    "minimum": 0
                   },
                   "float32": {
                     "type": "number",
@@ -450,35 +486,7 @@
                   "other": {
                     "type": "string"
                   }
-                },
-                "required": [
-                  "int",
-                  "int8",
-                  "int16",
-                  "int32",
-                  "int64",
-                  "uint",
-                  "uint8",
-                  "uint16",
-                  "uint32",
-                  "uint64",
-                  "float32",
-                  "float64",
-                  "string_field",
-                  "bool",
-                  "uuid",
-                  "time",
-                  "text",
-                  "state",
-                  "strings",
-                  "ints",
-                  "floats",
-                  "bytes",
-                  "nicknames",
-                  "json_slice",
-                  "json_obj",
-                  "other"
-                ]
+                }
               }
             }
           },
@@ -501,6 +509,9 @@
           "404": {
             "$ref": "#/components/responses/404"
           },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
           "500": {
             "$ref": "#/components/responses/500"
           }
@@ -521,11 +532,15 @@
           },
           "int8": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "maximum": 127,
+            "minimum": -128
           },
           "int16": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "maximum": 32767,
+            "minimum": -32768
           },
           "int32": {
             "type": "integer",
@@ -537,23 +552,32 @@
           },
           "uint": {
             "type": "integer",
-            "format": "int32"
+            "format": "int64",
+            "maximum": 4294967295,
+            "minimum": 0
           },
           "uint8": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "maximum": 255,
+            "minimum": 0
           },
           "uint16": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "maximum": 65535,
+            "minimum": 0
           },
           "uint32": {
             "type": "integer",
-            "format": "int32"
+            "format": "int64",
+            "maximum": 4294967295,
+            "minimum": 0
           },
           "uint64": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "minimum": 0
           },
           "float32": {
             "type": "number",
@@ -669,14 +693,17 @@
               "type": "object",
               "properties": {
                 "code": {
-                  "type": "integer",
-                  "format": "int32"
+                  "type": "integer"
                 },
                 "status": {
                   "type": "string"
                 },
                 "errors": {}
-              }
+              },
+              "required": [
+                "code",
+                "status"
+              ]
             }
           }
         }
@@ -689,14 +716,17 @@
               "type": "object",
               "properties": {
                 "code": {
-                  "type": "integer",
-                  "format": "int32"
+                  "type": "integer"
                 },
                 "status": {
                   "type": "string"
                 },
                 "errors": {}
-              }
+              },
+              "required": [
+                "code",
+                "status"
+              ]
             }
           }
         }
@@ -709,14 +739,17 @@
               "type": "object",
               "properties": {
                 "code": {
-                  "type": "integer",
-                  "format": "int32"
+                  "type": "integer"
                 },
                 "status": {
                   "type": "string"
                 },
                 "errors": {}
-              }
+              },
+              "required": [
+                "code",
+                "status"
+              ]
             }
           }
         }
@@ -729,14 +762,17 @@
               "type": "object",
               "properties": {
                 "code": {
-                  "type": "integer",
-                  "format": "int32"
+                  "type": "integer"
                 },
                 "status": {
                   "type": "string"
                 },
                 "errors": {}
-              }
+              },
+              "required": [
+                "code",
+                "status"
+              ]
             }
           }
         }
@@ -749,14 +785,17 @@
               "type": "object",
               "properties": {
                 "code": {
-                  "type": "integer",
-                  "format": "int32"
+                  "type": "integer"
                 },
                 "status": {
                   "type": "string"
                 },
                 "errors": {}
-              }
+              },
+              "required": [
+                "code",
+                "status"
+              ]
             }
           }
         }

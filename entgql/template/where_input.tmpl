@@ -15,21 +15,24 @@ in the LICENSE file in the root directory of this source tree.
 
 {{ template "import" $ }}
 
-{{ range $n := filterNodes $.Nodes }}
+{{ range $n := filterNodes $.Nodes (skipMode "where_input") }}
     {{ $comparableFields := list $n.ID }}
+    {{ $names := nodePaginationNames $n }}
     {{ with $annotation := $n.ID.Annotations.EntGQL }}
-        {{ if $annotation.Skip }}
+        {{ if isSkipMode $annotation.Skip "where_input" }}
             {{ $comparableFields = list }}
         {{ end }}
     {{ end }}
-    {{ range $f := filterFields $n.Fields }}
+    {{ range $f := filterFields $n.Fields (skipMode "where_input") }}
         {{ if $f.Type.Comparable }}
             {{ $comparableFields = append $comparableFields $f }}
         {{ end }}
     {{ end }}
-    {{ $input := print $n.Name "WhereInput" }}
+    {{ $name := $names.Node }}
+    {{ $input := $names.WhereInput }}
     // {{ $input }} represents a where input for filtering {{ $n.Name }} queries.
     type {{ $input }} struct {
+        Predicates []predicate.{{ $n.Name }} `json:"-"`
         Not *{{ $input }} `json:"not,omitempty"`
         Or  []*{{ $input }} `json:"or,omitempty"`
         And []*{{ $input }} `json:"and,omitempty"`
@@ -56,7 +59,7 @@ in the LICENSE file in the root directory of this source tree.
             {{- end }}
         {{- end }}
 
-        {{ range $e := filterEdges $n.Edges }}
+        {{ range $e := filterEdges $n.Edges (skipMode "where_input") }}
 
             // "{{ $e.Name }}" edge predicates.
             {{- $field := print "Has" $e.StructField }}
@@ -64,9 +67,17 @@ in the LICENSE file in the root directory of this source tree.
             {{ $field }} *bool `json:"{{ camel $jsonTag }},omitempty"`
             {{- $field = print $field "With" }}
             {{- $jsonTag = print $jsonTag "_with" }}
-            {{ $field }} []*{{ print $e.Type.Name "WhereInput" }} `json:"{{ camel $jsonTag }},omitempty"`
+            {{- $names := nodePaginationNames $e.Type }}
+            {{ $field }} []*{{ $names.WhereInput }} `json:"{{ camel $jsonTag }},omitempty"`
         {{- end }}
     }
+
+    // AddPredicates adds custom predicates to the where input to be used during the filtering phase.
+    func (i *{{ $input }}) AddPredicates(predicates ...predicate.{{ $n.Name }}) {
+        i.Predicates = append(i.Predicates, predicates...)
+    }
+
+    {{ $err := printf "ErrEmpty%s" $input }}
 
     // Filter applies the {{ $input }} filter on the {{ $n.QueryName }} builder.
     func (i *{{ $input }}) Filter(q *{{ $n.QueryName }}) (*{{ $n.QueryName }}, error) {
@@ -75,10 +86,17 @@ in the LICENSE file in the root directory of this source tree.
         }
         p, err := i.P()
         if err != nil {
+            {{- /* Skip errors only for top-level empty predicates. The rest are invalid. */}}
+            if err == {{ $err }} {
+               return q, nil
+            }
             return nil, err
         }
         return q.Where(p), nil
     }
+
+    // {{ $err }} is returned in case the {{ $input }} is empty.
+    var {{ $err }} = errors.New("{{ base $.Config.Package }}: empty predicate {{ $input }}")
 
     // P returns a predicate for filtering {{ plural $n.Name | lower }}.
     // An error is returned if the input is empty or invalid.
@@ -87,7 +105,7 @@ in the LICENSE file in the root directory of this source tree.
         if i.Not != nil {
             p, err := i.Not.P()
             if err != nil {
-                return nil, err
+                return nil, fmt.Errorf("%w: field 'not'", err)
             }
             predicates = append(predicates, {{ $n.Package }}.Not(p))
         }
@@ -95,7 +113,7 @@ in the LICENSE file in the root directory of this source tree.
         case n == 1:
             p, err := i.Or[0].P()
             if err != nil {
-                return nil, err
+                return nil, fmt.Errorf("%w: field 'or'", err)
             }
             predicates = append(predicates, p)
         case n > 1:
@@ -103,7 +121,7 @@ in the LICENSE file in the root directory of this source tree.
             for _, w := range i.Or {
                 p, err := w.P()
                 if err != nil {
-                    return nil, err
+                    return nil, fmt.Errorf("%w: field 'or'", err)
                 }
                 or = append(or, p)
             }
@@ -113,7 +131,7 @@ in the LICENSE file in the root directory of this source tree.
         case n == 1:
             p, err := i.And[0].P()
             if err != nil {
-                return nil, err
+                return nil, fmt.Errorf("%w: field 'and'", err)
             }
             predicates = append(predicates, p)
         case n > 1:
@@ -121,12 +139,13 @@ in the LICENSE file in the root directory of this source tree.
             for _, w := range i.And {
                 p, err := w.P()
                 if err != nil {
-                    return nil, err
+                    return nil, fmt.Errorf("%w: field 'and'", err)
                 }
                 and = append(and, p)
             }
             predicates = append(predicates, {{ $n.Package }}.And(and...))
         }
+        predicates = append(predicates, i.Predicates...)
         {{- range $f := $comparableFields }}
             {{- range $op := $f.Ops }}
                 {{- $func := print $f.StructField $op.Name }}
@@ -152,7 +171,7 @@ in the LICENSE file in the root directory of this source tree.
                 {{- end }}
             {{- end }}
         {{- end }}
-        {{ range $e := filterEdges $n.Edges }}
+        {{ range $e := filterEdges $n.Edges (skipMode "where_input") }}
             {{- $func := print "Has" $e.StructField }}
             if i.{{ $func }} != nil {
                 p := {{ $n.Package }}.{{ $func }}()
@@ -167,7 +186,7 @@ in the LICENSE file in the root directory of this source tree.
                 for _, w := range i.{{ $func }} {
                     p, err := w.P()
                     if err != nil {
-                        return nil, err
+                        return nil, fmt.Errorf("%w: field '{{ $func }}'", err)
                     }
                     with = append(with, p)
                 }
@@ -176,7 +195,7 @@ in the LICENSE file in the root directory of this source tree.
         {{- end }}
         switch len(predicates) {
         case 0:
-            return nil, fmt.Errorf("{{ $.Config.Package }}: empty predicate {{ $input }}")
+            return nil, {{ $err }}
         case 1:
             return predicates[0], nil
         default:

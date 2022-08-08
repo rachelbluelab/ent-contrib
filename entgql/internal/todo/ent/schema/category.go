@@ -43,6 +43,9 @@ func (Category) Fields() []ent.Field {
 			NamedValues(
 				"Enabled", "ENABLED",
 				"Disabled", "DISABLED",
+			).
+			Annotations(
+				entgql.Type("CategoryStatus"),
 			),
 		field.Other("config", &schematype.CategoryConfig{}).
 			SchemaType(map[string]string{
@@ -61,12 +64,15 @@ func (Category) Fields() []ent.Field {
 			Annotations(
 				entgql.Type("Uint64"),
 			),
+		field.Strings("strings").
+			Optional(),
 	}
 }
 
 // Edges of the Category.
 func (Category) Edges() []ent.Edge {
 	return []ent.Edge{
-		edge.To("todos", Todo.Type),
+		edge.To("todos", Todo.Type).
+			Annotations(entgql.RelayConnection()),
 	}
 }

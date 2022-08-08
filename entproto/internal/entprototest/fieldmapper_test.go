@@ -51,14 +51,14 @@ func (suite *AdapterTestSuite) TestFieldMap() {
 	status, ok := mp["status"]
 	require.True(ok)
 	assert.EqualValues("Status", status.PbStructField())
-	assert.True(status.IsEnumFIeld)
+	assert.True(status.IsEnumField)
 
 	for _, en := range mp.Edges() {
 		assert.True(en.IsEdgeField, "expected .Edges() to return only Edge fields")
 		assert.NotNil(en.EntEdge)
 	}
 	for _, en := range mp.Enums() {
-		assert.True(en.IsEnumFIeld, "expected .Enums() to return only enum fields")
+		assert.True(en.IsEnumField, "expected .Enums() to return only enum fields")
 	}
 }
 
@@ -88,4 +88,11 @@ func (suite *AdapterTestSuite) TestReferenced() {
 	require.True(ok)
 	require.NotNil(auth)
 	require.EqualValues(auth.ReferencedPbType.GetName(), "User")
+}
+
+func (suite *AdapterTestSuite) TestNoBackref() {
+	require := suite.Require()
+	mp, err := suite.adapter.FieldMap("NoBackref")
+	require.NoError(err)
+	require.Equal("Id", mp.Edges()[0].EdgeIDPbStructField())
 }

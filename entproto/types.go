@@ -23,7 +23,6 @@ import (
 var typeMap = map[field.Type]typeConfig{
 	field.TypeBool:  {pbType: descriptorpb.FieldDescriptorProto_TYPE_BOOL, optionalType: "google.protobuf.BoolValue"},
 	field.TypeTime:  {pbType: descriptorpb.FieldDescriptorProto_TYPE_MESSAGE, msgTypeName: "google.protobuf.Timestamp", optionalType: "google.protobuf.Timestamp"},
-	field.TypeJSON:  {unsupported: true},
 	field.TypeOther: {unsupported: true},
 	field.TypeUUID:  {pbType: descriptorpb.FieldDescriptorProto_TYPE_BYTES, optionalType: "google.protobuf.BytesValue"},
 	field.TypeBytes: {pbType: descriptorpb.FieldDescriptorProto_TYPE_BYTES, optionalType: "google.protobuf.BytesValue"},
@@ -31,7 +30,7 @@ var typeMap = map[field.Type]typeConfig{
 		return pascal(fld.Name)
 	}},
 	field.TypeString:  {pbType: descriptorpb.FieldDescriptorProto_TYPE_STRING, optionalType: "google.protobuf.StringValue"},
-	field.TypeInt:     {pbType: descriptorpb.FieldDescriptorProto_TYPE_INT32, optionalType: "google.protobuf.Int32Value"},
+	field.TypeInt:     {pbType: descriptorpb.FieldDescriptorProto_TYPE_INT64, optionalType: "google.protobuf.Int64Value"},
 	field.TypeInt8:    {pbType: descriptorpb.FieldDescriptorProto_TYPE_INT32, optionalType: "google.protobuf.Int32Value"},
 	field.TypeInt16:   {pbType: descriptorpb.FieldDescriptorProto_TYPE_INT32, optionalType: "google.protobuf.Int32Value"},
 	field.TypeInt32:   {pbType: descriptorpb.FieldDescriptorProto_TYPE_INT32, optionalType: "google.protobuf.Int32Value"},

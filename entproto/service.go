@@ -30,6 +30,9 @@ const (
 	// MaxPageSize is the maximum page size that can be returned by a List call. Requesting page sizes larger than
 	// this value will return, at most, MaxPageSize entries.
 	MaxPageSize = 1000
+	// MaxBatchCreateSize is the maximum number of entries that can be created by a single BatchCreate call. Requests
+	// exceeding this batch size will return an error.
+	MaxBatchCreateSize = 1000
 	// MethodCreate generates a Create gRPC service method for the entproto.Service.
 	MethodCreate Method = 1 << iota
 	// MethodGet generates a Get gRPC service method for the entproto.Service.
@@ -40,8 +43,10 @@ const (
 	MethodDelete
 	// MethodList generates a List gRPC service method for the entproto.Service.
 	MethodList
+	// MethodBatchCreate generates a Batch Create gRPC service method for the entproto.Service.
+	MethodBatchCreate
 	// MethodAll generates all service methods for the entproto.Service. This is the same behavior as not including entproto.Methods.
-	MethodAll = MethodCreate | MethodGet | MethodUpdate | MethodDelete | MethodList
+	MethodAll = MethodCreate | MethodGet | MethodUpdate | MethodDelete | MethodList | MethodBatchCreate
 )
 
 var (
@@ -97,7 +102,7 @@ func (a *Adapter) createServiceResources(genType *gen.Type, methods Method) (ser
 		},
 	}
 
-	for _, m := range []Method{MethodCreate, MethodGet, MethodUpdate, MethodDelete, MethodList} {
+	for _, m := range []Method{MethodCreate, MethodGet, MethodUpdate, MethodDelete, MethodList, MethodBatchCreate} {
 		if !methods.Is(m) {
 			continue
 		}
@@ -109,9 +114,12 @@ func (a *Adapter) createServiceResources(genType *gen.Type, methods Method) (ser
 		out.svc.Method = append(out.svc.Method, resources.methodDescriptor)
 		out.svcMessages = append(out.svcMessages, resources.messages...)
 	}
+	out.svcMessages = dedupeServiceMessages(out.svcMessages)
 
 	return out, nil
 }
+
+var plural = gen.Funcs["plural"].(func(string) string)
 
 func (a *Adapter) genMethodProtos(genType *gen.Type, m Method) (methodResources, error) {
 	input := &descriptorpb.DescriptorProto{}
@@ -121,11 +129,19 @@ func (a *Adapter) genMethodProtos(genType *gen.Type, m Method) (methodResources,
 	}
 	protoMessageFieldType := descriptorpb.FieldDescriptorProto_TYPE_MESSAGE
 	protoEnumFieldType := descriptorpb.FieldDescriptorProto_TYPE_ENUM
+	repeatedFieldLabel := descriptorpb.FieldDescriptorProto_LABEL_REPEATED
 	singleMessageField := &descriptorpb.FieldDescriptorProto{
 		Name:     strptr(snake(genType.Name)),
 		Number:   int32ptr(1),
 		Type:     &protoMessageFieldType,
 		TypeName: &genType.Name,
+	}
+	repeatedMessageField := &descriptorpb.FieldDescriptorProto{
+		Name:     strptr(snake(plural(genType.Name))),
+		Number:   int32ptr(1),
+		Label:    &repeatedFieldLabel,
+		Type:     &protoMessageFieldType,
+		TypeName: strptr(genType.Name),
 	}
 	var (
 		outputName, methodName string
@@ -173,7 +189,7 @@ func (a *Adapter) genMethodProtos(genType *gen.Type, m Method) (methodResources,
 		outputName = "google.protobuf.Empty"
 		messages = append(messages, input)
 	case MethodList:
-		if !(genType.ID.IsInt() || genType.ID.IsUUID() || genType.ID.IsString()) {
+		if !(genType.ID.IsInt() || genType.ID.IsInt64() || genType.ID.IsUUID() || genType.ID.IsString()) {
 			return methodResources{}, fmt.Errorf("entproto: list method does not support schema %q id type %q",
 				genType.Name, genType.ID.Type.String())
 		}
@@ -181,7 +197,6 @@ func (a *Adapter) genMethodProtos(genType *gen.Type, m Method) (methodResources,
 		methodName = "List"
 		int32FieldType := descriptorpb.FieldDescriptorProto_TYPE_INT32
 		stringFieldType := descriptorpb.FieldDescriptorProto_TYPE_STRING
-		repeatedFieldLabel := descriptorpb.FieldDescriptorProto_LABEL_REPEATED
 		input.Name = strptr(fmt.Sprintf("List%sRequest", genType.Name))
 		input.Field = []*descriptorpb.FieldDescriptorProto{
 			{
@@ -228,6 +243,31 @@ func (a *Adapter) genMethodProtos(genType *gen.Type, m Method) (methodResources,
 			},
 		}
 		messages = append(messages, input, output)
+	case MethodBatchCreate:
+		methodName = "BatchCreate"
+		createRequest := &descriptorpb.DescriptorProto{}
+		createRequest.Name = strptr(fmt.Sprintf("Create%sRequest", genType.Name))
+		createRequest.Field = []*descriptorpb.FieldDescriptorProto{singleMessageField}
+		messages = append(messages, createRequest)
+
+		pluralEntityName := plural(genType.Name)
+		input.Name = strptr(fmt.Sprintf("BatchCreate%sRequest", pluralEntityName))
+		input.Field = []*descriptorpb.FieldDescriptorProto{
+			{
+				Name:     strptr("requests"),
+				Number:   int32ptr(1),
+				Label:    &repeatedFieldLabel,
+				Type:     &protoMessageFieldType,
+				TypeName: strptr(fmt.Sprintf("Create%sRequest", genType.Name)),
+			},
+		}
+
+		outputName = fmt.Sprintf("BatchCreate%sResponse", pluralEntityName)
+		output := &descriptorpb.DescriptorProto{
+			Name:  &outputName,
+			Field: []*descriptorpb.FieldDescriptorProto{repeatedMessageField},
+		}
+		messages = append(messages, input, output)
 	default:
 		return methodResources{}, fmt.Errorf("unknown method %q", m)
 	}
@@ -266,4 +306,17 @@ func extractServiceAnnotation(sch *gen.Type) (*service, error) {
 	}
 
 	return &out, nil
+}
+
+func dedupeServiceMessages(msgs []*descriptorpb.DescriptorProto) []*descriptorpb.DescriptorProto {
+	out := make([]*descriptorpb.DescriptorProto, 0, len(msgs))
+	seen := make(map[string]struct{})
+	for _, msg := range msgs {
+		if _, skip := seen[msg.GetName()]; skip {
+			continue
+		}
+		out = append(out, msg)
+		seen[msg.GetName()] = struct{}{}
+	}
+	return out
 }

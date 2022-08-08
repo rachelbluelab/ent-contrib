@@ -37,6 +37,8 @@ func (Pet) Edges() []ent.Edge {
 			Ref("pet").
 			Unique().
 			Annotations(entproto.Field(2)),
+		edge.To("attachment", Attachment.Type).
+			Annotations(entproto.Field(3)),
 	}
 }
 

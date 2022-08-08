@@ -37,6 +37,8 @@ const (
 	FieldDuration = "duration"
 	// FieldCount holds the string denoting the count field in the database.
 	FieldCount = "count"
+	// FieldStrings holds the string denoting the strings field in the database.
+	FieldStrings = "strings"
 	// EdgeTodos holds the string denoting the todos edge name in mutations.
 	EdgeTodos = "todos"
 	// Table holds the table name of the category in the database.
@@ -47,7 +49,7 @@ const (
 	// It exists in this package in order to avoid circular dependency with the "todo" package.
 	TodosInverseTable = "todos"
 	// TodosColumn is the table column denoting the todos relation/edge.
-	TodosColumn = "category_todos"
+	TodosColumn = "category_id"
 )
 
 // Columns holds all SQL columns for category fields.
@@ -58,6 +60,7 @@ var Columns = []string{
 	FieldConfig,
 	FieldDuration,
 	FieldCount,
+	FieldStrings,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -99,18 +102,18 @@ func StatusValidator(s Status) error {
 }
 
 // MarshalGQL implements graphql.Marshaler interface.
-func (s Status) MarshalGQL(w io.Writer) {
-	io.WriteString(w, strconv.Quote(s.String()))
+func (e Status) MarshalGQL(w io.Writer) {
+	io.WriteString(w, strconv.Quote(e.String()))
 }
 
 // UnmarshalGQL implements graphql.Unmarshaler interface.
-func (s *Status) UnmarshalGQL(val interface{}) error {
+func (e *Status) UnmarshalGQL(val interface{}) error {
 	str, ok := val.(string)
 	if !ok {
 		return fmt.Errorf("enum %T must be a string", val)
 	}
-	*s = Status(str)
-	if err := StatusValidator(*s); err != nil {
+	*e = Status(str)
+	if err := StatusValidator(*e); err != nil {
 		return fmt.Errorf("%s is not a valid Status", str)
 	}
 	return nil

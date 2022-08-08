@@ -16,14 +16,67 @@
 
 package ent
 
-import "context"
+import (
+	"context"
 
-func (c *Category) Todos(ctx context.Context) ([]*Todo, error) {
-	result, err := c.Edges.TodosOrErr()
+	"github.com/99designs/gqlgen/graphql"
+)
+
+func (c *Category) Todos(
+	ctx context.Context, after *Cursor, first *int, before *Cursor, last *int, orderBy *TodoOrder, where *TodoWhereInput,
+) (*TodoConnection, error) {
+	opts := []TodoPaginateOption{
+		WithTodoOrder(orderBy),
+		WithTodoFilter(where.Filter),
+	}
+	alias := graphql.GetFieldContext(ctx).Field.Alias
+	totalCount, hasTotalCount := c.Edges.totalCount[0][alias]
+	if nodes, err := c.NamedTodos(alias); err == nil || hasTotalCount {
+		pager, err := newTodoPager(opts)
+		if err != nil {
+			return nil, err
+		}
+		conn := &TodoConnection{Edges: []*TodoEdge{}, TotalCount: totalCount}
+		conn.build(nodes, pager, after, first, before, last)
+		return conn, nil
+	}
+	return c.QueryTodos().Paginate(ctx, after, first, before, last, opts...)
+}
+
+func (f *Friendship) User(ctx context.Context) (*User, error) {
+	result, err := f.Edges.UserOrErr()
 	if IsNotLoaded(err) {
-		result, err = c.QueryTodos().All(ctx)
+		result, err = f.QueryUser().Only(ctx)
 	}
 	return result, err
+}
+
+func (f *Friendship) Friend(ctx context.Context) (*User, error) {
+	result, err := f.Edges.FriendOrErr()
+	if IsNotLoaded(err) {
+		result, err = f.QueryFriend().Only(ctx)
+	}
+	return result, err
+}
+
+func (gr *Group) Users(
+	ctx context.Context, after *Cursor, first *int, before *Cursor, last *int, where *UserWhereInput,
+) (*UserConnection, error) {
+	opts := []UserPaginateOption{
+		WithUserFilter(where.Filter),
+	}
+	alias := graphql.GetFieldContext(ctx).Field.Alias
+	totalCount, hasTotalCount := gr.Edges.totalCount[0][alias]
+	if nodes, err := gr.NamedUsers(alias); err == nil || hasTotalCount {
+		pager, err := newUserPager(opts)
+		if err != nil {
+			return nil, err
+		}
+		conn := &UserConnection{Edges: []*UserEdge{}, TotalCount: totalCount}
+		conn.build(nodes, pager, after, first, before, last)
+		return conn, nil
+	}
+	return gr.QueryUsers().Paginate(ctx, after, first, before, last, opts...)
 }
 
 func (t *Todo) Parent(ctx context.Context) (*Todo, error) {
@@ -34,12 +87,25 @@ func (t *Todo) Parent(ctx context.Context) (*Todo, error) {
 	return result, MaskNotFound(err)
 }
 
-func (t *Todo) Children(ctx context.Context) ([]*Todo, error) {
-	result, err := t.Edges.ChildrenOrErr()
-	if IsNotLoaded(err) {
-		result, err = t.QueryChildren().All(ctx)
+func (t *Todo) Children(
+	ctx context.Context, after *Cursor, first *int, before *Cursor, last *int, orderBy *TodoOrder, where *TodoWhereInput,
+) (*TodoConnection, error) {
+	opts := []TodoPaginateOption{
+		WithTodoOrder(orderBy),
+		WithTodoFilter(where.Filter),
 	}
-	return result, err
+	alias := graphql.GetFieldContext(ctx).Field.Alias
+	totalCount, hasTotalCount := t.Edges.totalCount[1][alias]
+	if nodes, err := t.NamedChildren(alias); err == nil || hasTotalCount {
+		pager, err := newTodoPager(opts)
+		if err != nil {
+			return nil, err
+		}
+		conn := &TodoConnection{Edges: []*TodoEdge{}, TotalCount: totalCount}
+		conn.build(nodes, pager, after, first, before, last)
+		return conn, nil
+	}
+	return t.QueryChildren().Paginate(ctx, after, first, before, last, opts...)
 }
 
 func (t *Todo) Category(ctx context.Context) (*Category, error) {
@@ -48,4 +114,40 @@ func (t *Todo) Category(ctx context.Context) (*Category, error) {
 		result, err = t.QueryCategory().Only(ctx)
 	}
 	return result, MaskNotFound(err)
+}
+
+func (u *User) Groups(
+	ctx context.Context, after *Cursor, first *int, before *Cursor, last *int, where *GroupWhereInput,
+) (*GroupConnection, error) {
+	opts := []GroupPaginateOption{
+		WithGroupFilter(where.Filter),
+	}
+	alias := graphql.GetFieldContext(ctx).Field.Alias
+	totalCount, hasTotalCount := u.Edges.totalCount[0][alias]
+	if nodes, err := u.NamedGroups(alias); err == nil || hasTotalCount {
+		pager, err := newGroupPager(opts)
+		if err != nil {
+			return nil, err
+		}
+		conn := &GroupConnection{Edges: []*GroupEdge{}, TotalCount: totalCount}
+		conn.build(nodes, pager, after, first, before, last)
+		return conn, nil
+	}
+	return u.QueryGroups().Paginate(ctx, after, first, before, last, opts...)
+}
+
+func (u *User) Friends(ctx context.Context) ([]*User, error) {
+	result, err := u.Edges.FriendsOrErr()
+	if IsNotLoaded(err) {
+		result, err = u.QueryFriends().All(ctx)
+	}
+	return result, err
+}
+
+func (u *User) Friendships(ctx context.Context) ([]*Friendship, error) {
+	result, err := u.Edges.FriendshipsOrErr()
+	if IsNotLoaded(err) {
+		result, err = u.QueryFriendships().All(ctx)
+	}
+	return result, err
 }

@@ -17,6 +17,7 @@
 package ent
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -42,6 +43,8 @@ type Category struct {
 	Duration time.Duration `json:"duration,omitempty"`
 	// Count holds the value of the "count" field.
 	Count uint64 `json:"count,omitempty"`
+	// Strings holds the value of the "strings" field.
+	Strings []string `json:"strings,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the CategoryQuery when eager-loading is set.
 	Edges CategoryEdges `json:"edges"`
@@ -54,6 +57,10 @@ type CategoryEdges struct {
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [1]bool
+	// totalCount holds the count of the edges above.
+	totalCount [1]map[string]int
+
+	namedTodos map[string][]*Todo
 }
 
 // TodosOrErr returns the Todos value or an error if the edge
@@ -70,6 +77,8 @@ func (*Category) scanValues(columns []string) ([]interface{}, error) {
 	values := make([]interface{}, len(columns))
 	for i := range columns {
 		switch columns[i] {
+		case category.FieldStrings:
+			values[i] = new([]byte)
 		case category.FieldID:
 			values[i] = new(pulid.ID)
 		case category.FieldConfig:
@@ -129,6 +138,14 @@ func (c *Category) assignValues(columns []string, values []interface{}) error {
 			} else if value.Valid {
 				c.Count = uint64(value.Int64)
 			}
+		case category.FieldStrings:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field strings", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &c.Strings); err != nil {
+					return fmt.Errorf("unmarshal field strings: %w", err)
+				}
+			}
 		}
 	}
 	return nil
@@ -149,11 +166,11 @@ func (c *Category) Update() *CategoryUpdateOne {
 // Unwrap unwraps the Category entity that was returned from a transaction after it was closed,
 // so that all future queries will be executed through the driver which created the transaction.
 func (c *Category) Unwrap() *Category {
-	tx, ok := c.config.driver.(*txDriver)
+	_tx, ok := c.config.driver.(*txDriver)
 	if !ok {
 		panic("ent: Category is not a transactional entity")
 	}
-	c.config.driver = tx.drv
+	c.config.driver = _tx.drv
 	return c
 }
 
@@ -161,19 +178,50 @@ func (c *Category) Unwrap() *Category {
 func (c *Category) String() string {
 	var builder strings.Builder
 	builder.WriteString("Category(")
-	builder.WriteString(fmt.Sprintf("id=%v", c.ID))
-	builder.WriteString(", text=")
+	builder.WriteString(fmt.Sprintf("id=%v, ", c.ID))
+	builder.WriteString("text=")
 	builder.WriteString(c.Text)
-	builder.WriteString(", status=")
+	builder.WriteString(", ")
+	builder.WriteString("status=")
 	builder.WriteString(fmt.Sprintf("%v", c.Status))
-	builder.WriteString(", config=")
+	builder.WriteString(", ")
+	builder.WriteString("config=")
 	builder.WriteString(fmt.Sprintf("%v", c.Config))
-	builder.WriteString(", duration=")
+	builder.WriteString(", ")
+	builder.WriteString("duration=")
 	builder.WriteString(fmt.Sprintf("%v", c.Duration))
-	builder.WriteString(", count=")
+	builder.WriteString(", ")
+	builder.WriteString("count=")
 	builder.WriteString(fmt.Sprintf("%v", c.Count))
+	builder.WriteString(", ")
+	builder.WriteString("strings=")
+	builder.WriteString(fmt.Sprintf("%v", c.Strings))
 	builder.WriteByte(')')
 	return builder.String()
+}
+
+// NamedTodos returns the Todos named value or an error if the edge was not
+// loaded in eager-loading with this name.
+func (c *Category) NamedTodos(name string) ([]*Todo, error) {
+	if c.Edges.namedTodos == nil {
+		return nil, &NotLoadedError{edge: name}
+	}
+	nodes, ok := c.Edges.namedTodos[name]
+	if !ok {
+		return nil, &NotLoadedError{edge: name}
+	}
+	return nodes, nil
+}
+
+func (c *Category) appendNamedTodos(name string, edges ...*Todo) {
+	if c.Edges.namedTodos == nil {
+		c.Edges.namedTodos = make(map[string][]*Todo)
+	}
+	if len(edges) == 0 {
+		c.Edges.namedTodos[name] = []*Todo{}
+	} else {
+		c.Edges.namedTodos[name] = append(c.Edges.namedTodos[name], edges...)
+	}
 }
 
 // Categories is a parsable slice of Category.

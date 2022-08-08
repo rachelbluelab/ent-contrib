@@ -38,7 +38,11 @@ func toProtoMultiWordSchema_Unit(e multiwordschema.Unit) MultiWordSchema_Unit {
 
 func toEntMultiWordSchema_Unit(e MultiWordSchema_Unit) multiwordschema.Unit {
 	if v, ok := MultiWordSchema_Unit_name[int32(e)]; ok {
-		return multiwordschema.Unit(strings.ToLower(v))
+		entVal := map[string]string{
+			"M":  "m",
+			"FT": "ft",
+		}[v]
+		return multiwordschema.Unit(entVal)
 	}
 	return ""
 }
@@ -46,19 +50,33 @@ func toEntMultiWordSchema_Unit(e MultiWordSchema_Unit) multiwordschema.Unit {
 // toProtoMultiWordSchema transforms the ent type to the pb type
 func toProtoMultiWordSchema(e *ent.MultiWordSchema) (*MultiWordSchema, error) {
 	v := &MultiWordSchema{}
-	id := int32(e.ID)
+	id := int64(e.ID)
 	v.Id = id
 	unit := toProtoMultiWordSchema_Unit(e.Unit)
 	v.Unit = unit
 	return v, nil
 }
 
+// toProtoMultiWordSchemaList transforms a list of ent type to a list of pb type
+func toProtoMultiWordSchemaList(e []*ent.MultiWordSchema) ([]*MultiWordSchema, error) {
+	var pbList []*MultiWordSchema
+	for _, entEntity := range e {
+		pbEntity, err := toProtoMultiWordSchema(entEntity)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "internal error: %s", err)
+		}
+		pbList = append(pbList, pbEntity)
+	}
+	return pbList, nil
+}
+
 // Create implements MultiWordSchemaServiceServer.Create
 func (svc *MultiWordSchemaService) Create(ctx context.Context, req *CreateMultiWordSchemaRequest) (*MultiWordSchema, error) {
 	multiwordschema := req.GetMultiWordSchema()
-	m := svc.client.MultiWordSchema.Create()
-	multiwordschemaUnit := toEntMultiWordSchema_Unit(multiwordschema.GetUnit())
-	m.SetUnit(multiwordschemaUnit)
+	m, err := svc.createBuilder(multiwordschema)
+	if err != nil {
+		return nil, err
+	}
 	res, err := m.Save(ctx)
 	switch {
 	case err == nil:
@@ -102,7 +120,6 @@ func (svc *MultiWordSchemaService) Get(ctx context.Context, req *GetMultiWordSch
 	default:
 		return nil, status.Errorf(codes.Internal, "internal error: %s", err)
 	}
-	return nil, nil
 
 }
 
@@ -113,6 +130,7 @@ func (svc *MultiWordSchemaService) Update(ctx context.Context, req *UpdateMultiW
 	m := svc.client.MultiWordSchema.UpdateOneID(multiwordschemaID)
 	multiwordschemaUnit := toEntMultiWordSchema_Unit(multiwordschema.GetUnit())
 	m.SetUnit(multiwordschemaUnit)
+
 	res, err := m.Save(ctx)
 	switch {
 	case err == nil:
@@ -192,20 +210,58 @@ func (svc *MultiWordSchemaService) List(ctx context.Context, req *ListMultiWordS
 				[]byte(fmt.Sprintf("%v", entList[len(entList)-1].ID)))
 			entList = entList[:len(entList)-1]
 		}
-		var pbList []*MultiWordSchema
-		for _, entEntity := range entList {
-			pbEntity, err := toProtoMultiWordSchema(entEntity)
-			if err != nil {
-				return nil, status.Errorf(codes.Internal, "internal error: %s", err)
-			}
-			pbList = append(pbList, pbEntity)
+		protoList, err := toProtoMultiWordSchemaList(entList)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "internal error: %s", err)
 		}
 		return &ListMultiWordSchemaResponse{
-			MultiWordSchemaList: pbList,
+			MultiWordSchemaList: protoList,
 			NextPageToken:       nextPageToken,
 		}, nil
 	default:
 		return nil, status.Errorf(codes.Internal, "internal error: %s", err)
 	}
 
+}
+
+// BatchCreate implements MultiWordSchemaServiceServer.BatchCreate
+func (svc *MultiWordSchemaService) BatchCreate(ctx context.Context, req *BatchCreateMultiWordSchemasRequest) (*BatchCreateMultiWordSchemasResponse, error) {
+	requests := req.GetRequests()
+	if len(requests) > entproto.MaxBatchCreateSize {
+		return nil, status.Errorf(codes.InvalidArgument, "batch size cannot be greater than %d", entproto.MaxBatchCreateSize)
+	}
+	bulk := make([]*ent.MultiWordSchemaCreate, len(requests))
+	for i, req := range requests {
+		multiwordschema := req.GetMultiWordSchema()
+		var err error
+		bulk[i], err = svc.createBuilder(multiwordschema)
+		if err != nil {
+			return nil, err
+		}
+	}
+	res, err := svc.client.MultiWordSchema.CreateBulk(bulk...).Save(ctx)
+	switch {
+	case err == nil:
+		protoList, err := toProtoMultiWordSchemaList(res)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "internal error: %s", err)
+		}
+		return &BatchCreateMultiWordSchemasResponse{
+			MultiWordSchemas: protoList,
+		}, nil
+	case sqlgraph.IsUniqueConstraintError(err):
+		return nil, status.Errorf(codes.AlreadyExists, "already exists: %s", err)
+	case ent.IsConstraintError(err):
+		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
+	default:
+		return nil, status.Errorf(codes.Internal, "internal error: %s", err)
+	}
+
+}
+
+func (svc *MultiWordSchemaService) createBuilder(multiwordschema *MultiWordSchema) (*ent.MultiWordSchemaCreate, error) {
+	m := svc.client.MultiWordSchema.Create()
+	multiwordschemaUnit := toEntMultiWordSchema_Unit(multiwordschema.GetUnit())
+	m.SetUnit(multiwordschemaUnit)
+	return m, nil
 }

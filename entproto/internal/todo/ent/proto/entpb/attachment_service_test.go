@@ -69,17 +69,18 @@ func TestAttachmentService_MultiEdge(t *testing.T) {
 			SetExternalID(i+1).
 			SetCrmID(uuid.New()).
 			SetCustomPb(1).
+			SetLabels(nil).
 			SaveX(ctx))
 	}
 	att, err := svc.Create(ctx, &CreateAttachmentRequest{Attachment: &Attachment{
 		User: &User{
-			Id: int32(users[0].ID),
+			Id: int64(users[0].ID),
 		},
 		Recipients: []*User{
-			{Id: int32(users[1].ID)},
-			{Id: int32(users[2].ID)},
-			{Id: int32(users[3].ID)},
-			{Id: int32(users[4].ID)},
+			{Id: int64(users[1].ID)},
+			{Id: int64(users[2].ID)},
+			{Id: int64(users[3].ID)},
+			{Id: int64(users[4].ID)},
 		},
 	}})
 	all := client.Attachment.Query().WithRecipients(func(query *ent.UserQuery) {

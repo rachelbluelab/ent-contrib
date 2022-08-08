@@ -36,15 +36,15 @@ func TestOgenSchema(t *testing.T) {
 	for d, ex := range map[*entfield.Descriptor]*ogen.Schema{
 		// Numeric
 		entfield.Int("int").Descriptor():         ogen.Int(),
-		entfield.Int8("int8").Descriptor():       ogen.Int32(),
-		entfield.Int16("int16").Descriptor():     ogen.Int32(),
+		entfield.Int8("int8").Descriptor():       ogen.Int32().SetMinimum(&min8).SetMaximum(&max8),
+		entfield.Int16("int16").Descriptor():     ogen.Int32().SetMinimum(&min16).SetMaximum(&max16),
 		entfield.Int32("int32").Descriptor():     ogen.Int32(),
 		entfield.Int64("int64").Descriptor():     ogen.Int64(),
-		entfield.Uint("uint").Descriptor():       ogen.Int32(),
-		entfield.Uint8("uint8").Descriptor():     ogen.Int32(),
-		entfield.Uint16("uint16").Descriptor():   ogen.Int32(),
-		entfield.Uint32("uint32").Descriptor():   ogen.Int32(),
-		entfield.Uint64("uint64").Descriptor():   ogen.Int64(),
+		entfield.Uint("uint").Descriptor():       ogen.Int64().SetMinimum(&zero).SetMaximum(&maxu32),
+		entfield.Uint8("uint8").Descriptor():     ogen.Int32().SetMinimum(&zero).SetMaximum(&maxu8),
+		entfield.Uint16("uint16").Descriptor():   ogen.Int32().SetMinimum(&zero).SetMaximum(&maxu16),
+		entfield.Uint32("uint32").Descriptor():   ogen.Int64().SetMinimum(&zero).SetMaximum(&maxu32),
+		entfield.Uint64("uint64").Descriptor():   ogen.Int64().SetMinimum(&zero),
 		entfield.Float32("float32").Descriptor(): ogen.Float(),
 		entfield.Float("float64").Descriptor():   ogen.Double(),
 		// Basic
@@ -86,7 +86,7 @@ func TestOgenSchema(t *testing.T) {
 				Annotations: f.Annotations,
 				Enums:       ens,
 			}
-			ac, err := ogenSchema(gf)
+			ac, err := OgenSchema(gf)
 			if ex == nil {
 				require.Error(t, err)
 				require.EqualError(t, err, fmt.Sprintf(

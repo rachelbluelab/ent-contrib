@@ -42,6 +42,10 @@ type (
 		Delete OperationConfig
 		// List has meta information about a list operation.
 		List OperationConfig
+		// ReadOnly specifies that the field/edge is read only (no create/update parameter)
+		ReadOnly bool
+		// Skip specifies that the field will be ignored in spec.
+		Skip bool
 	}
 	// OperationConfig holds meta information about a REST operation.
 	OperationConfig struct {
@@ -98,6 +102,16 @@ func ListOperation(opts ...OperationConfigOption) Annotation {
 	return Annotation{List: operationsConfig(opts)}
 }
 
+// ReadOnly returns a read only field/edge annotation
+func ReadOnly(readonly bool) Annotation {
+	return Annotation{ReadOnly: readonly}
+}
+
+// Skip returns a skip field annotation
+func Skip(skip bool) Annotation {
+	return Annotation{Skip: skip}
+}
+
 func operationsConfig(opts []OperationConfigOption) OperationConfig {
 	c := OperationConfig{}
 	for _, opt := range opts {
@@ -133,17 +147,22 @@ func (a Annotation) Merge(o schema.Annotation) schema.Annotation {
 	a.Update.merge(ant.Update)
 	a.Delete.merge(ant.Delete)
 	a.List.merge(ant.List)
+	if ant.ReadOnly {
+		a.ReadOnly = true
+	}
+	if ant.Skip {
+		a.Skip = true
+	}
 	return a
 }
 
-func (op OperationConfig) merge(other OperationConfig) OperationConfig {
+func (op *OperationConfig) merge(other OperationConfig) {
 	if other.Policy != PolicyNone {
 		op.Policy = other.Policy
 	}
 	if other.Groups != nil {
 		op.Groups = other.Groups
 	}
-	return op
 }
 
 // Decode from ent.

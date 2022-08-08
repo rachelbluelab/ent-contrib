@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"go/parser"
 	"go/token"
 	"reflect"
 	"runtime"
@@ -31,8 +32,34 @@ import (
 // to construct it.
 func Field(desc *field.Descriptor) (*ast.CallExpr, error) {
 	switch t := desc.Info.Type; {
-	case t.Numeric(), t == field.TypeString, t == field.TypeBool, t == field.TypeTime:
+	case t.Numeric(), t == field.TypeString, t == field.TypeBool, t == field.TypeTime, t == field.TypeBytes:
 		return fromSimpleType(desc)
+	case t == field.TypeUUID:
+		return fromComplexType(
+			desc,
+			structLit(
+				&ast.SelectorExpr{
+					X:   ast.NewIdent("uuid"),
+					Sel: ast.NewIdent("UUID"),
+				},
+			))
+	case t == field.TypeJSON:
+		exp, err := parser.ParseExpr("struct{}{}")
+		if err != nil {
+			return nil, fmt.Errorf("schemast: json field %s generation error %w", desc.Name, err)
+		}
+		if c, ok := exp.(*ast.CompositeLit); ok {
+			if v, ok := c.Type.(*ast.StructType); ok {
+				v.Fields = &ast.FieldList{
+					Opening: 1,
+					Closing: 1,
+				}
+			}
+		}
+		return fromComplexType(
+			desc,
+			exp,
+		)
 	case t == field.TypeEnum:
 		return fromEnumType(desc)
 	default:
@@ -114,6 +141,16 @@ func fromEnumType(desc *field.Descriptor) (*ast.CallExpr, error) {
 	return builder.curr, nil
 }
 
+func fromComplexType(desc *field.Descriptor, filedType ast.Expr) (*ast.CallExpr, error) {
+	call, err := fromSimpleType(desc)
+	if err != nil {
+		return nil, err
+	}
+
+	call.Args = append(call.Args, filedType)
+	return call, nil
+}
+
 func fromSimpleType(desc *field.Descriptor) (*ast.CallExpr, error) {
 	builder := newFieldCall(desc)
 	if desc.Nillable {
@@ -172,7 +209,11 @@ func fromSimpleType(desc *field.Descriptor) (*ast.CallExpr, error) {
 }
 
 func fieldConstructor(dsc *field.Descriptor) string {
-	return strings.TrimPrefix(dsc.Info.ConstName(), "Type")
+	cn := dsc.Info.ConstName()
+	if dsc.Info.Type == field.TypeFloat64 {
+		cn = strings.TrimSuffix(cn, "64")
+	}
+	return strings.TrimPrefix(cn, "Type")
 }
 
 func defaultExpr(d interface{}) (ast.Expr, error) {

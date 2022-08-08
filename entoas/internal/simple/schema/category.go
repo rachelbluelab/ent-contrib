@@ -18,6 +18,8 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
+
+	"entgo.io/contrib/entoas"
 )
 
 // Category holds the schema definition for the Category entity.
@@ -29,6 +31,10 @@ type Category struct {
 func (Category) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("name"),
+		field.String("readonly").
+			Annotations(
+				entoas.Annotation{ReadOnly: true}),
+		field.String("skip_in_spec").Annotations(entoas.Annotation{Skip: true}),
 	}
 }
 

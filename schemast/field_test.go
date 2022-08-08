@@ -25,6 +25,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/schema/field"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -51,9 +52,9 @@ func TestFromFieldDescriptor(t *testing.T) {
 			expected: `field.Int64("x")`,
 		},
 		{
-			name:           "unsupported type",
-			field:          field.JSON("json_field", &SomeJSON{}),
-			expectedErrMsg: "schemast: unsupported type TypeJSON",
+			name:     "json",
+			field:    field.JSON("json_field", struct{}{}),
+			expected: `field.JSON("json_field", struct{}{})`,
 		},
 		{
 			name:     "time",
@@ -121,6 +122,16 @@ func TestFromFieldDescriptor(t *testing.T) {
 			expected: `field.Float32("x").Default(3.14)`,
 		},
 		{
+			name:     "float64",
+			field:    field.Float("x"),
+			expected: `field.Float("x")`,
+		},
+		{
+			name:     "default:float64",
+			field:    field.Float("x").Default(2.718),
+			expected: `field.Float("x").Default(2.718)`,
+		},
+		{
 			name:     "default:bool",
 			field:    field.Bool("x").Default(true),
 			expected: `field.Bool("x").Default(true)`,
@@ -131,6 +142,16 @@ func TestFromFieldDescriptor(t *testing.T) {
 				return nil
 			}),
 			expectedErrMsg: "schemast: unsupported feature Descriptor.Validators",
+		},
+		{
+			name:     "bytes",
+			field:    field.Bytes("x"),
+			expected: `field.Bytes("x")`,
+		},
+		{
+			name:     "uuid",
+			field:    field.UUID("x", uuid.UUID{}),
+			expected: `field.UUID("x", uuid.UUID{})`,
 		},
 	}
 
@@ -149,9 +170,6 @@ func TestFromFieldDescriptor(t *testing.T) {
 			require.EqualValues(t, tt.expected, buf.String())
 		})
 	}
-}
-
-type SomeJSON struct {
 }
 
 type annotation string

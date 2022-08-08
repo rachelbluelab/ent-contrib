@@ -84,7 +84,7 @@ func (m FieldMap) Edges() []*FieldMappingDescriptor {
 func (m FieldMap) Enums() []*FieldMappingDescriptor {
 	var out []*FieldMappingDescriptor
 	for _, f := range m {
-		if f.IsEnumFIeld {
+		if f.IsEnumField {
 			out = append(out, f)
 		}
 	}
@@ -101,20 +101,25 @@ type FieldMappingDescriptor struct {
 	PbFieldDescriptor *desc.FieldDescriptor
 	IsEdgeField       bool
 	IsIDField         bool
-	IsEnumFIeld       bool
+	IsEnumField       bool
 	ReferencedPbType  *desc.MessageDescriptor
 }
 
+// PbStructField returns the protobuf field descriptor of this field.
 func (d *FieldMappingDescriptor) PbStructField() string {
 	return camelCase(d.PbFieldDescriptor.GetName())
 }
 
+// EdgeIDPbStructField returns the name for the id field  of the
+// entity this edge refers to.
 func (d *FieldMappingDescriptor) EdgeIDPbStructField() string {
-	return camelCase(d.EntEdge.Ref.Type.ID.Name)
+	return camelCase(d.EntEdge.Type.ID.Name)
 }
 
+// EdgeIDPbStructFieldDesc returns the protobuf field descriptor for the id field
+// of the entity this edge refers to.
 func (d *FieldMappingDescriptor) EdgeIDPbStructFieldDesc() *desc.FieldDescriptor {
-	field := strings.Title(camel(d.EntEdge.Ref.Type.ID.Name))
+	field := strings.Title(camel(d.EntEdge.Type.ID.Name))
 	return d.ReferencedPbType.FindFieldByName(snake(field))
 }
 
@@ -124,7 +129,7 @@ func (a *Adapter) mapFields(entType *gen.Type, pbType *desc.MessageDescriptor) (
 		fd := &FieldMappingDescriptor{
 			PbFieldDescriptor: fld,
 			IsIDField:         pascal(fld.GetName()) == pascal(entType.ID.Name),
-			IsEnumFIeld:       fld.GetEnumType() != nil,
+			IsEnumField:       fld.GetEnumType() != nil,
 		}
 		for _, edg := range entType.Edges {
 			if fld.GetName() == edg.Name {

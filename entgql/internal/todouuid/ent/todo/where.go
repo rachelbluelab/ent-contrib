@@ -49,12 +49,6 @@ func IDNEQ(id uuid.UUID) predicate.Todo {
 // IDIn applies the In predicate on the ID field.
 func IDIn(ids ...uuid.UUID) predicate.Todo {
 	return predicate.Todo(func(s *sql.Selector) {
-		// if not arguments were provided, append the FALSE constants,
-		// since we can't apply "IN ()". This will make this predicate falsy.
-		if len(ids) == 0 {
-			s.Where(sql.False())
-			return
-		}
 		v := make([]interface{}, len(ids))
 		for i := range v {
 			v[i] = ids[i]
@@ -66,12 +60,6 @@ func IDIn(ids ...uuid.UUID) predicate.Todo {
 // IDNotIn applies the NotIn predicate on the ID field.
 func IDNotIn(ids ...uuid.UUID) predicate.Todo {
 	return predicate.Todo(func(s *sql.Selector) {
-		// if not arguments were provided, append the FALSE constants,
-		// since we can't apply "IN ()". This will make this predicate falsy.
-		if len(ids) == 0 {
-			s.Where(sql.False())
-			return
-		}
 		v := make([]interface{}, len(ids))
 		for i := range v {
 			v[i] = ids[i]
@@ -136,6 +124,13 @@ func Blob(v []byte) predicate.Todo {
 	})
 }
 
+// CategoryID applies equality check predicate on the "category_id" field. It's identical to CategoryIDEQ.
+func CategoryID(v uuid.UUID) predicate.Todo {
+	return predicate.Todo(func(s *sql.Selector) {
+		s.Where(sql.EQ(s.C(FieldCategoryID), v))
+	})
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.Todo {
 	return predicate.Todo(func(s *sql.Selector) {
@@ -157,12 +152,6 @@ func CreatedAtIn(vs ...time.Time) predicate.Todo {
 		v[i] = vs[i]
 	}
 	return predicate.Todo(func(s *sql.Selector) {
-		// if not arguments were provided, append the FALSE constants,
-		// since we can't apply "IN ()". This will make this predicate falsy.
-		if len(v) == 0 {
-			s.Where(sql.False())
-			return
-		}
 		s.Where(sql.In(s.C(FieldCreatedAt), v...))
 	})
 }
@@ -174,12 +163,6 @@ func CreatedAtNotIn(vs ...time.Time) predicate.Todo {
 		v[i] = vs[i]
 	}
 	return predicate.Todo(func(s *sql.Selector) {
-		// if not arguments were provided, append the FALSE constants,
-		// since we can't apply "IN ()". This will make this predicate falsy.
-		if len(v) == 0 {
-			s.Where(sql.False())
-			return
-		}
 		s.Where(sql.NotIn(s.C(FieldCreatedAt), v...))
 	})
 }
@@ -233,12 +216,6 @@ func StatusIn(vs ...Status) predicate.Todo {
 		v[i] = vs[i]
 	}
 	return predicate.Todo(func(s *sql.Selector) {
-		// if not arguments were provided, append the FALSE constants,
-		// since we can't apply "IN ()". This will make this predicate falsy.
-		if len(v) == 0 {
-			s.Where(sql.False())
-			return
-		}
 		s.Where(sql.In(s.C(FieldStatus), v...))
 	})
 }
@@ -250,12 +227,6 @@ func StatusNotIn(vs ...Status) predicate.Todo {
 		v[i] = vs[i]
 	}
 	return predicate.Todo(func(s *sql.Selector) {
-		// if not arguments were provided, append the FALSE constants,
-		// since we can't apply "IN ()". This will make this predicate falsy.
-		if len(v) == 0 {
-			s.Where(sql.False())
-			return
-		}
 		s.Where(sql.NotIn(s.C(FieldStatus), v...))
 	})
 }
@@ -281,12 +252,6 @@ func PriorityIn(vs ...int) predicate.Todo {
 		v[i] = vs[i]
 	}
 	return predicate.Todo(func(s *sql.Selector) {
-		// if not arguments were provided, append the FALSE constants,
-		// since we can't apply "IN ()". This will make this predicate falsy.
-		if len(v) == 0 {
-			s.Where(sql.False())
-			return
-		}
 		s.Where(sql.In(s.C(FieldPriority), v...))
 	})
 }
@@ -298,12 +263,6 @@ func PriorityNotIn(vs ...int) predicate.Todo {
 		v[i] = vs[i]
 	}
 	return predicate.Todo(func(s *sql.Selector) {
-		// if not arguments were provided, append the FALSE constants,
-		// since we can't apply "IN ()". This will make this predicate falsy.
-		if len(v) == 0 {
-			s.Where(sql.False())
-			return
-		}
 		s.Where(sql.NotIn(s.C(FieldPriority), v...))
 	})
 }
@@ -357,12 +316,6 @@ func TextIn(vs ...string) predicate.Todo {
 		v[i] = vs[i]
 	}
 	return predicate.Todo(func(s *sql.Selector) {
-		// if not arguments were provided, append the FALSE constants,
-		// since we can't apply "IN ()". This will make this predicate falsy.
-		if len(v) == 0 {
-			s.Where(sql.False())
-			return
-		}
 		s.Where(sql.In(s.C(FieldText), v...))
 	})
 }
@@ -374,12 +327,6 @@ func TextNotIn(vs ...string) predicate.Todo {
 		v[i] = vs[i]
 	}
 	return predicate.Todo(func(s *sql.Selector) {
-		// if not arguments were provided, append the FALSE constants,
-		// since we can't apply "IN ()". This will make this predicate falsy.
-		if len(v) == 0 {
-			s.Where(sql.False())
-			return
-		}
 		s.Where(sql.NotIn(s.C(FieldText), v...))
 	})
 }
@@ -468,12 +415,6 @@ func BlobIn(vs ...[]byte) predicate.Todo {
 		v[i] = vs[i]
 	}
 	return predicate.Todo(func(s *sql.Selector) {
-		// if not arguments were provided, append the FALSE constants,
-		// since we can't apply "IN ()". This will make this predicate falsy.
-		if len(v) == 0 {
-			s.Where(sql.False())
-			return
-		}
 		s.Where(sql.In(s.C(FieldBlob), v...))
 	})
 }
@@ -485,12 +426,6 @@ func BlobNotIn(vs ...[]byte) predicate.Todo {
 		v[i] = vs[i]
 	}
 	return predicate.Todo(func(s *sql.Selector) {
-		// if not arguments were provided, append the FALSE constants,
-		// since we can't apply "IN ()". This will make this predicate falsy.
-		if len(v) == 0 {
-			s.Where(sql.False())
-			return
-		}
 		s.Where(sql.NotIn(s.C(FieldBlob), v...))
 	})
 }
@@ -534,6 +469,56 @@ func BlobIsNil() predicate.Todo {
 func BlobNotNil() predicate.Todo {
 	return predicate.Todo(func(s *sql.Selector) {
 		s.Where(sql.NotNull(s.C(FieldBlob)))
+	})
+}
+
+// CategoryIDEQ applies the EQ predicate on the "category_id" field.
+func CategoryIDEQ(v uuid.UUID) predicate.Todo {
+	return predicate.Todo(func(s *sql.Selector) {
+		s.Where(sql.EQ(s.C(FieldCategoryID), v))
+	})
+}
+
+// CategoryIDNEQ applies the NEQ predicate on the "category_id" field.
+func CategoryIDNEQ(v uuid.UUID) predicate.Todo {
+	return predicate.Todo(func(s *sql.Selector) {
+		s.Where(sql.NEQ(s.C(FieldCategoryID), v))
+	})
+}
+
+// CategoryIDIn applies the In predicate on the "category_id" field.
+func CategoryIDIn(vs ...uuid.UUID) predicate.Todo {
+	v := make([]interface{}, len(vs))
+	for i := range v {
+		v[i] = vs[i]
+	}
+	return predicate.Todo(func(s *sql.Selector) {
+		s.Where(sql.In(s.C(FieldCategoryID), v...))
+	})
+}
+
+// CategoryIDNotIn applies the NotIn predicate on the "category_id" field.
+func CategoryIDNotIn(vs ...uuid.UUID) predicate.Todo {
+	v := make([]interface{}, len(vs))
+	for i := range v {
+		v[i] = vs[i]
+	}
+	return predicate.Todo(func(s *sql.Selector) {
+		s.Where(sql.NotIn(s.C(FieldCategoryID), v...))
+	})
+}
+
+// CategoryIDIsNil applies the IsNil predicate on the "category_id" field.
+func CategoryIDIsNil() predicate.Todo {
+	return predicate.Todo(func(s *sql.Selector) {
+		s.Where(sql.IsNull(s.C(FieldCategoryID)))
+	})
+}
+
+// CategoryIDNotNil applies the NotNil predicate on the "category_id" field.
+func CategoryIDNotNil() predicate.Todo {
+	return predicate.Todo(func(s *sql.Selector) {
+		s.Where(sql.NotNull(s.C(FieldCategoryID)))
 	})
 }
 

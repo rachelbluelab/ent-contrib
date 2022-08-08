@@ -123,6 +123,18 @@ func (cu *CategoryUpdate) ClearCount() *CategoryUpdate {
 	return cu
 }
 
+// SetStrings sets the "strings" field.
+func (cu *CategoryUpdate) SetStrings(s []string) *CategoryUpdate {
+	cu.mutation.SetStrings(s)
+	return cu
+}
+
+// ClearStrings clears the value of the "strings" field.
+func (cu *CategoryUpdate) ClearStrings() *CategoryUpdate {
+	cu.mutation.ClearStrings()
+	return cu
+}
+
 // AddTodoIDs adds the "todos" edge to the Todo entity by IDs.
 func (cu *CategoryUpdate) AddTodoIDs(ids ...pulid.ID) *CategoryUpdate {
 	cu.mutation.AddTodoIDs(ids...)
@@ -324,6 +336,19 @@ func (cu *CategoryUpdate) sqlSave(ctx context.Context) (n int, err error) {
 			Column: category.FieldCount,
 		})
 	}
+	if value, ok := cu.mutation.Strings(); ok {
+		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
+			Type:   field.TypeJSON,
+			Value:  value,
+			Column: category.FieldStrings,
+		})
+	}
+	if cu.mutation.StringsCleared() {
+		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
+			Type:   field.TypeJSON,
+			Column: category.FieldStrings,
+		})
+	}
 	if cu.mutation.TodosCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.O2M,
@@ -382,7 +407,7 @@ func (cu *CategoryUpdate) sqlSave(ctx context.Context) (n int, err error) {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{category.Label}
 		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{err.Error(), err}
+			err = &ConstraintError{msg: err.Error(), wrap: err}
 		}
 		return 0, err
 	}
@@ -475,6 +500,18 @@ func (cuo *CategoryUpdateOne) ClearCount() *CategoryUpdateOne {
 	return cuo
 }
 
+// SetStrings sets the "strings" field.
+func (cuo *CategoryUpdateOne) SetStrings(s []string) *CategoryUpdateOne {
+	cuo.mutation.SetStrings(s)
+	return cuo
+}
+
+// ClearStrings clears the value of the "strings" field.
+func (cuo *CategoryUpdateOne) ClearStrings() *CategoryUpdateOne {
+	cuo.mutation.ClearStrings()
+	return cuo
+}
+
 // AddTodoIDs adds the "todos" edge to the Todo entity by IDs.
 func (cuo *CategoryUpdateOne) AddTodoIDs(ids ...pulid.ID) *CategoryUpdateOne {
 	cuo.mutation.AddTodoIDs(ids...)
@@ -554,9 +591,15 @@ func (cuo *CategoryUpdateOne) Save(ctx context.Context) (*Category, error) {
 			}
 			mut = cuo.hooks[i](mut)
 		}
-		if _, err := mut.Mutate(ctx, cuo.mutation); err != nil {
+		v, err := mut.Mutate(ctx, cuo.mutation)
+		if err != nil {
 			return nil, err
 		}
+		nv, ok := v.(*Category)
+		if !ok {
+			return nil, fmt.Errorf("unexpected node type %T returned from CategoryMutation", v)
+		}
+		node = nv
 	}
 	return node, err
 }
@@ -700,6 +743,19 @@ func (cuo *CategoryUpdateOne) sqlSave(ctx context.Context) (_node *Category, err
 			Column: category.FieldCount,
 		})
 	}
+	if value, ok := cuo.mutation.Strings(); ok {
+		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
+			Type:   field.TypeJSON,
+			Value:  value,
+			Column: category.FieldStrings,
+		})
+	}
+	if cuo.mutation.StringsCleared() {
+		_spec.Fields.Clear = append(_spec.Fields.Clear, &sqlgraph.FieldSpec{
+			Type:   field.TypeJSON,
+			Column: category.FieldStrings,
+		})
+	}
 	if cuo.mutation.TodosCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.O2M,
@@ -761,7 +817,7 @@ func (cuo *CategoryUpdateOne) sqlSave(ctx context.Context) (_node *Category, err
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{category.Label}
 		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{err.Error(), err}
+			err = &ConstraintError{msg: err.Error(), wrap: err}
 		}
 		return nil, err
 	}

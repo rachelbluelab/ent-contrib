@@ -83,9 +83,23 @@ func (cc *CategoryCreate) SetNillableCount(u *uint64) *CategoryCreate {
 	return cc
 }
 
+// SetStrings sets the "strings" field.
+func (cc *CategoryCreate) SetStrings(s []string) *CategoryCreate {
+	cc.mutation.SetStrings(s)
+	return cc
+}
+
 // SetID sets the "id" field.
 func (cc *CategoryCreate) SetID(u uuid.UUID) *CategoryCreate {
 	cc.mutation.SetID(u)
+	return cc
+}
+
+// SetNillableID sets the "id" field if the given value is not nil.
+func (cc *CategoryCreate) SetNillableID(u *uuid.UUID) *CategoryCreate {
+	if u != nil {
+		cc.SetID(*u)
+	}
 	return cc
 }
 
@@ -144,9 +158,15 @@ func (cc *CategoryCreate) Save(ctx context.Context) (*Category, error) {
 			}
 			mut = cc.hooks[i](mut)
 		}
-		if _, err := mut.Mutate(ctx, cc.mutation); err != nil {
+		v, err := mut.Mutate(ctx, cc.mutation)
+		if err != nil {
 			return nil, err
 		}
+		nv, ok := v.(*Category)
+		if !ok {
+			return nil, fmt.Errorf("unexpected node type %T returned from CategoryMutation", v)
+		}
+		node = nv
 	}
 	return node, err
 }
@@ -206,7 +226,7 @@ func (cc *CategoryCreate) sqlSave(ctx context.Context) (*Category, error) {
 	_node, _spec := cc.createSpec()
 	if err := sqlgraph.CreateNode(ctx, cc.driver, _spec); err != nil {
 		if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{err.Error(), err}
+			err = &ConstraintError{msg: err.Error(), wrap: err}
 		}
 		return nil, err
 	}
@@ -275,6 +295,14 @@ func (cc *CategoryCreate) createSpec() (*Category, *sqlgraph.CreateSpec) {
 		})
 		_node.Count = value
 	}
+	if value, ok := cc.mutation.Strings(); ok {
+		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
+			Type:   field.TypeJSON,
+			Value:  value,
+			Column: category.FieldStrings,
+		})
+		_node.Strings = value
+	}
 	if nodes := cc.mutation.TodosIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.O2M,
@@ -330,7 +358,7 @@ func (ccb *CategoryCreateBulk) Save(ctx context.Context) ([]*Category, error) {
 					// Invoke the actual operation on the latest mutation in the chain.
 					if err = sqlgraph.BatchCreate(ctx, ccb.driver, spec); err != nil {
 						if sqlgraph.IsConstraintError(err) {
-							err = &ConstraintError{err.Error(), err}
+							err = &ConstraintError{msg: err.Error(), wrap: err}
 						}
 					}
 				}

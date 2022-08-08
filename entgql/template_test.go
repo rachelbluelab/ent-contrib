@@ -15,9 +15,10 @@
 package entgql
 
 import (
+	"testing"
+
 	"entgo.io/ent/entc/gen"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 var annotationName = Annotation{}.Name()
@@ -37,10 +38,10 @@ func TestFilterNodes(t *testing.T) {
 		{
 			Name: "SkippedType",
 			Annotations: map[string]interface{}{
-				annotationName: map[string]interface{}{"Skip": true},
+				annotationName: map[string]interface{}{"Skip": SkipAll},
 			},
 		},
-	})
+	}, SkipType)
 	require.NoError(t, err)
 	require.Equal(t, []*gen.Type{
 		{
@@ -73,18 +74,18 @@ func TestFilterEdges(t *testing.T) {
 			Name: "SkippedEdge",
 			Type: &gen.Type{},
 			Annotations: map[string]interface{}{
-				annotationName: map[string]interface{}{"Skip": true},
+				annotationName: map[string]interface{}{"Skip": SkipAll},
 			},
 		},
 		{
 			Name: "SkippedEdgeType",
 			Type: &gen.Type{
 				Annotations: map[string]interface{}{
-					annotationName: map[string]interface{}{"Skip": true},
+					annotationName: map[string]interface{}{"Skip": SkipAll},
 				},
 			},
 		},
-	})
+	}, SkipType)
 	require.NoError(t, err)
 	require.Equal(t, []*gen.Edge{
 		{
@@ -101,6 +102,91 @@ func TestFilterEdges(t *testing.T) {
 	}, edges)
 }
 
+func TestFieldCollections(t *testing.T) {
+	edges := []*gen.Edge{
+		{
+			Name: "Edge1",
+			Type: &gen.Type{
+				Name: "Todo",
+			},
+			Annotations: map[string]interface{}{
+				annotationName: map[string]interface{}{},
+			},
+		},
+		{
+			Name: "Edge2",
+			Type: &gen.Type{
+				Name: "Todo",
+			},
+		},
+		{
+			Name: "two_words",
+			Type: &gen.Type{
+				Name: "Todo",
+			},
+		},
+		{
+			Name: "Unbind",
+			Type: &gen.Type{
+				Name: "Todo",
+			},
+			Annotations: map[string]interface{}{
+				annotationName: map[string]interface{}{
+					"Unbind": true,
+				},
+			},
+		},
+		{
+			Name: "EdgeMapping",
+			Type: &gen.Type{
+				Name: "Todo",
+			},
+			Annotations: map[string]interface{}{
+				annotationName: map[string]interface{}{
+					"Unbind":  true,
+					"Mapping": []string{"field1", "field2"},
+				},
+			},
+		},
+	}
+	collect, err := fieldCollections(edges)
+	require.NoError(t, err)
+	require.Equal(t, []*fieldCollection{
+		{
+			Edge:    edges[0],
+			Mapping: []string{"edge1", "Edge1"},
+		},
+		{
+			Edge:    edges[1],
+			Mapping: []string{"edge2", "Edge2"},
+		},
+		{
+			Edge:    edges[2],
+			Mapping: []string{"twoWords", "two_words"},
+		},
+		{
+			Edge:    edges[4],
+			Mapping: []string{"field1", "field2"},
+		},
+	}, collect)
+
+	_, err = fieldCollections([]*gen.Edge{
+		{
+			Name: "EdgeInvalid",
+			Type: &gen.Type{
+				Name: "Todo",
+			},
+			Annotations: map[string]interface{}{
+				annotationName: map[string]interface{}{
+					"Unbind":  false,
+					"Mapping": []string{"field1", "field2"},
+				},
+			},
+		},
+	})
+	require.Errorf(t, err, "bind and mapping annotations are mutually exclusive")
+}
+
 func TestFilterFields(t *testing.T) {
 	fields, err := filterFields([]*gen.Field{
 		{
@@ -115,10 +201,10 @@ func TestFilterFields(t *testing.T) {
 		{
 			Name: "SkippedField",
 			Annotations: map[string]interface{}{
-				annotationName: map[string]interface{}{"Skip": true},
+				annotationName: map[string]interface{}{"Skip": SkipAll},
 			},
 		},
-	})
+	}, SkipType)
 	require.NoError(t, err)
 	require.Equal(t, []*gen.Field{
 		{

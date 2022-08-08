@@ -105,6 +105,29 @@ func (User) Fields() []ent.Field {
 		field.Float("account_balance").
 			Default(0.0).
 			Annotations(entproto.Field(20)),
+		field.String("unnecessary").
+			Optional().
+			Annotations(entproto.Skip()),
+		field.String("type").
+			Optional().
+			Annotations(
+				entproto.Field(23),
+			),
+		field.Strings("labels").
+			Optional().
+			Annotations(
+				entproto.Field(24),
+			),
+		field.Enum("device_type").
+			Values("GLOWY9000", "SPEEDY300").
+			Default("GLOWY9000").
+			Annotations(
+				entproto.Field(100),
+				entproto.Enum(map[string]int32{
+					"GLOWY9000": 0,
+					"SPEEDY300": 1,
+				}),
+			),
 	}
 }
 
@@ -126,6 +149,9 @@ func (User) Edges() []ent.Edge {
 		edge.To("pet", Pet.Type).
 			Unique().
 			Annotations(entproto.Field(21)),
+		edge.To("skip_edge", SkipEdgeExample.Type).
+			Unique().
+			Annotations(entproto.Skip()),
 	}
 }
 

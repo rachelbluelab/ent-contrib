@@ -135,7 +135,7 @@ func (vsu *VerySecretUpdate) sqlSave(ctx context.Context) (n int, err error) {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{verysecret.Label}
 		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{err.Error(), err}
+			err = &ConstraintError{msg: err.Error(), wrap: err}
 		}
 		return 0, err
 	}
@@ -193,9 +193,15 @@ func (vsuo *VerySecretUpdateOne) Save(ctx context.Context) (*VerySecret, error) 
 			}
 			mut = vsuo.hooks[i](mut)
 		}
-		if _, err := mut.Mutate(ctx, vsuo.mutation); err != nil {
+		v, err := mut.Mutate(ctx, vsuo.mutation)
+		if err != nil {
 			return nil, err
 		}
+		nv, ok := v.(*VerySecret)
+		if !ok {
+			return nil, fmt.Errorf("unexpected node type %T returned from VerySecretMutation", v)
+		}
+		node = nv
 	}
 	return node, err
 }
@@ -271,7 +277,7 @@ func (vsuo *VerySecretUpdateOne) sqlSave(ctx context.Context) (_node *VerySecret
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{verysecret.Label}
 		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{err.Error(), err}
+			err = &ConstraintError{msg: err.Error(), wrap: err}
 		}
 		return nil, err
 	}
